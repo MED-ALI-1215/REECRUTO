@@ -1,0 +1,68 @@
+JOB TITLE: Senior Python Developer
+
+COMPANY: Tech Innovations Corp
+LOCATION: Remote (US-based)
+EMPLOYMENT TYPE: Full-time
+SALARY RANGE: $140,000 - $180,000
+
+ABOUT US:
+Tech Innovations Corp is a leading software company specializing in cloud-native applications and AI-powered solutions. We're building the next generation of enterprise software that helps businesses scale efficiently.
+
+JOB DESCRIPTION:
+We're seeking an experienced Senior Python Developer to join our growing engineering team. You'll be responsible for designing and building scalable backend services, mentoring junior developers, and contributing to our technical architecture decisions.
+
+RESPONSIBILITIES:
+- Design, develop, and maintain high-performance Python applications
+- Build and optimize RESTful APIs and microservices
+- Work with cloud platforms (AWS, GCP) to deploy and scale applications
+- Write clean, maintainable, and well-documented code
+- Conduct code reviews and mentor junior team members
+- Collaborate with cross-functional teams (Product, DevOps, QA)
+- Participate in architecture and design discussions
+- Implement automated testing and CI/CD pipelines
+- Monitor application performance and troubleshoot issues
+
+REQUIRED QUALIFICATIONS:
+- 5+ years of professional Python development experience
+- Strong experience with web frameworks (Django, Flask, FastAPI)
+- Proficiency with SQL and NoSQL databases (PostgreSQL, MongoDB, Redis)
+- Experience with cloud platforms (AWS preferred)
+- Solid understanding of RESTful API design and microservices architecture
+- Experience with containerization (Docker) and orchestration (Kubernetes)
+- Strong knowledge of version control (Git)
+- Excellent problem-solving and debugging skills
+- Bachelor's degree in Computer Science or related field (or equivalent experience)
+
+PREFERRED QUALIFICATIONS:
+- Master's degree in Computer Science
+- Experience with Go or other compiled languages
+- AWS certification
+- Experience with message queues (RabbitMQ, Kafka)
+- Contributions to open-source projects
+- Experience leading or mentoring teams
+- Knowledge of CI/CD tools (Jenkins, GitLab CI, GitHub Actions)
+- Familiarity with monitoring tools (New Relic, Datadog)
+
+TECHNICAL SKILLS:
+- Languages: Python (expert), SQL, JavaScript (nice to have)
+- Frameworks: Django, Flask, FastAPI
+- Databases: PostgreSQL, MongoDB, Redis
+- Cloud: AWS (EC2, S3, Lambda, RDS, etc.)
+- DevOps: Docker, Kubernetes, CI/CD
+- Testing: pytest, unittest, integration testing
+
+WHAT WE OFFER:
+- Competitive salary and equity package
+- Comprehensive health, dental, and vision insurance
+- 401(k) with company match
+- Unlimited PTO policy
+- Remote-first culture with flexible working hours
+- Professional development budget
+- Latest MacBook Pro and equipment
+- Annual company retreats
+- Collaborative and innovative team environment
+
+HOW TO APPLY:
+Submit your resume and a brief cover letter explaining why you're interested in this position. We review applications on a rolling basis.
+
+Tech Innovations Corp is an equal opportunity employer. We celebrate diversity and are committed to creating an inclusive environment for all employees.

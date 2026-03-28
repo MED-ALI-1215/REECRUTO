@@ -1,0 +1,12 @@
+streamlit
+flask
+python-docx
+PyPDF2
+pdfplumber
+pytesseract
+Pillow
+chromadb
+anthropic
+python-dotenv
+pandas
+sentence-transformers
