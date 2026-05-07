@@ -5,242 +5,268 @@ An intelligent recruitment platform that automates CV parsing, candidate matchin
 ## 🌟 Features
 
 ### 1. CV Parser (`app1_cv_parser.py`)
-- **Multi-format support**: PDF, Word (.docx), Images (PNG, JPG), Text files
-- **AI-powered extraction**: Uses Claude AI to extract structured information
-- **Candidate database**: Stores candidates in ChromaDB for efficient searching
-- **Supported data extraction**:
-  - Name, Email, Phone
-  - Education & Certifications
-  - Work Experience
-  - Skills (Technical & Soft)
+
+* Multi-format support: PDF, Word (.docx), Images (PNG, JPG), Text files
+* AI-powered extraction using Groq LLMs
+* Candidate database powered by ChromaDB
+* Extracted information includes:
+
+  * Name, Email, Phone
+  * Education & Certifications
+  * Work Experience
+  * Technical & Soft Skills
+
+---
 
 ### 2. Job Matcher (`app2_job_matcher.py`)
-- **Smart matching**: AI-powered candidate-to-job matching using vector similarity
-- **Auto-ranking**: Claude AI ranks candidates based on experience, skills, and fit
-- **Email automation**:
-  - ✅ Acceptance emails with interview scheduling
-  - ❌ Professional rejection emails
-- **Match scoring**: 0-100% match score for each candidate
+
+* AI-powered candidate-to-job matching
+* Candidate ranking using vector similarity and LLM evaluation
+* Automated email workflows:
+
+  * ✅ Acceptance emails
+  * ❌ Rejection emails
+* Match scoring system from 0–100%
+
+---
 
 ### 3. Interview Simulation (`app3_interview.py`)
-- **AI interviewer**: Claude AI conducts realistic text-based interviews
-- **Multiple types**: Technical, Behavioral, or Mixed interviews
-- **Adaptive questioning**: AI asks follow-up questions based on previous answers
-- **Detailed evaluation**:
-  - Overall score (0-100)
-  - Strengths & weaknesses
-  - Skills assessment
-  - Hiring recommendation
-- **Transcript download**: Save complete interview for records
+
+* AI-powered interview simulation
+* Supports:
+
+  * Technical interviews
+  * Behavioral interviews
+  * Mixed interviews
+* Adaptive questioning system
+* Multiple answering methods:
+
+  * ✍️ Text responses
+  * 🎤 Voice-recorded responses with speech-to-text transcription
+* Detailed candidate evaluation:
+
+  * Overall score
+  * Strengths & weaknesses
+  * Skill assessment
+  * Hiring recommendation
+* Downloadable interview transcript
+
+---
 
 ## 📋 Prerequisites
 
-- Python 3.8 or higher
-- Anthropic API key (get it from https://console.anthropic.com/)
-- Gmail account with App Password enabled (for email features)
-- Tesseract OCR (for image-based CV parsing)
+* Python 3.8+
+* Groq API key: https://console.groq.com/keys
+* Gmail account with App Password enabled
+* Tesseract OCR installed
+
+---
 
 ## 🚀 Installation
 
-### Step 1: Clone and Setup
+### Step 1: Clone & Setup
 
 ```bash
-# Navigate to project directory
 cd /path/to/recruto
 
-# Install Python dependencies
 pip install -r requirements.txt
 ```
 
+---
+
 ### Step 2: Install Tesseract OCR
 
-**Ubuntu/Debian:**
+#### Ubuntu / Debian
+
 ```bash
 sudo apt-get update
 sudo apt-get install tesseract-ocr
 ```
 
-**macOS:**
+#### macOS
+
 ```bash
 brew install tesseract
 ```
 
-**Windows:**
-Download installer from: https://github.com/UB-Mannheim/tesseract/wiki
+#### Windows
+
+Download:
+https://github.com/UB-Mannheim/tesseract/wiki
+
+---
 
 ### Step 3: Configure Environment Variables
 
-1. Copy the template:
+Copy the template:
+
 ```bash
 cp .env.template .env
 ```
 
-2. Edit `.env` file with your credentials:
+Edit `.env`:
+
 ```env
 # API Keys
-ANTHROPIC_API_KEY=sk-ant-xxxxxxxxxxxxx
+GROQ_API_KEY=gsk_xxxxxxxxxxxxx
 
 # Email Configuration
-EMAIL_ADDRESS=medalialouani7@gmail.com
+EMAIL_ADDRESS=your_email@gmail.com
 EMAIL_PASSWORD=your_gmail_app_password_here
 
-# ChromaDB Configuration
+# ChromaDB
 CHROMA_DB_PATH=./chroma_db
 ```
 
-### Step 4: Setup Gmail App Password
+---
 
-1. Go to Google Account settings: https://myaccount.google.com/
-2. Enable 2-Factor Authentication
-3. Go to Security → 2-Step Verification → App passwords
-4. Generate a new app password for "Mail"
-5. Copy the 16-character password to `.env` file
+### Step 4: Configure Gmail App Password
 
-## 🎮 Usage
+1. Enable 2-Factor Authentication
+2. Go to:
+   Security → 2-Step Verification → App Passwords
+3. Generate a Mail app password
+4. Add it to the `.env` file
 
-### Running the Applications
+---
 
-You need to run **3 separate Streamlit apps** on different ports:
+## 🎮 Running the Applications
 
-#### Terminal 1 - CV Parser:
+Run each service on a separate terminal:
+
+### Terminal 1 — CV Parser
+
 ```bash
 streamlit run app1_cv_parser.py --server.port 8501
 ```
 
-#### Terminal 2 - Job Matcher:
+### Terminal 2 — Job Matcher
+
 ```bash
 streamlit run app2_job_matcher.py --server.port 8502
 ```
 
-#### Terminal 3 - Interview Simulation:
+### Terminal 3 — Interview Simulation
+
 ```bash
 streamlit run app3_interview.py --server.port 8503
 ```
 
-#### Terminal 4 - Main HTML Interface (Optional):
+### Terminal 4 — Main Interface (Optional)
+
 ```bash
 python app.py
 ```
 
-### Accessing the Applications
+---
 
-- **Main Landing Page**: http://localhost:5000
-- **CV Parser**: http://localhost:8501
-- **Job Matcher**: http://localhost:8502
-- **Interview Simulation**: http://localhost:8503
+## 🌐 Access URLs
 
-## 📖 User Guide
-
-### 1. Parsing CVs
-
-1. Open CV Parser app
-2. Upload CV file (PDF, Word, Image, or Text)
-3. Enter candidate name (optional - AI will extract it)
-4. Click "Parse CV"
-5. Review extracted information
-6. CV is automatically saved to database
-
-### 2. Matching Candidates to Jobs
-
-1. Open Job Matcher app
-2. Enter job title and description
-3. Select number of candidates to match
-4. Click "Find Matching Candidates"
-5. Review matched candidates with scores
-6. (Optional) Click "Rank Candidates with AI" for detailed ranking
-7. Enter candidate emails and click Accept/Reject to send emails
-
-### 3. Conducting Interviews
-
-1. Open Interview Simulation app
-2. Enter candidate details and select interview type
-3. Choose difficulty level and number of questions
-4. Click "Start Interview"
-5. Answer each question thoughtfully
-6. After final question, click "Generate Evaluation"
-7. Download transcript for records
-
-## 🛠️ Project Structure
-
-```
-recruto/
-├── app.py                      # Flask router for HTML interface
-├── app1_cv_parser.py          # CV Parser Streamlit app
-├── app2_job_matcher.py        # Job Matcher Streamlit app
-├── app3_interview.py          # Interview Simulation Streamlit app
-├── requirements.txt           # Python dependencies
-├── .env                       # Environment variables (create from .env.template)
-├── .env.template             # Environment variables template
-├── chroma_db/                # ChromaDB storage (auto-created)
-├── utils/
-│   ├── cv_parser.py          # CV parsing utilities
-│   ├── database.py           # ChromaDB interface
-│   └── email_sender.py       # Email sending utilities
-├── templates/
-│   └── index.html            # Main landing page
-└── static/                   # CSS, JS, Images for HTML interface
-```
-
-## 🔧 Troubleshooting
-
-### Issue: "Tesseract not found"
-**Solution**: Install Tesseract OCR and ensure it's in your system PATH
-
-### Issue: "Email authentication failed"
-**Solution**: 
-- Make sure you're using Gmail App Password, not regular password
-- Enable 2-Factor Authentication first
-- Generate new app password if needed
-
-### Issue: "ChromaDB error"
-**Solution**: Delete `chroma_db` folder and restart applications
-
-### Issue: "API rate limit exceeded"
-**Solution**: 
-- Anthropic free tier has limits
-- Wait a few minutes or upgrade to paid tier
-- Check your API usage at https://console.anthropic.com/
-
-## 📊 API Usage & Costs
-
-- **Anthropic Claude API**: Free tier includes $5 credit
-- **ChromaDB**: Completely free, runs locally
-- **Gmail SMTP**: Free for reasonable usage
-
-## 🔐 Security Notes
-
-- Never commit `.env` file to version control
-- Keep API keys secure
-- Gmail app passwords are safer than regular passwords
-- ChromaDB stores data locally by default
-
-## 🚀 Future Enhancements
-
-- [ ] Video interview with AI assessment (currently text-only)
-- [ ] Resume templates and formatting
-- [ ] Multi-language support
-- [ ] Calendar integration for interview scheduling
-- [ ] Advanced analytics dashboard
-- [ ] Export reports to PDF
-
-## 💡 Tips for Best Results
-
-1. **CV Parsing**: Provide clear, well-formatted CVs for better extraction
-2. **Job Matching**: Be specific in job descriptions for accurate matching
-3. **Interviews**: Answer thoughtfully with specific examples
-4. **Email**: Test with your own email first before sending to candidates
-
-## 📝 License
-
-This project is for educational and internal use.
-
-## 🤝 Support
-
-For issues or questions:
-1. Check the Troubleshooting section
-2. Review Anthropic API documentation: https://docs.anthropic.com/
-3. Check ChromaDB docs: https://docs.trychroma.com/
+* Main Interface: http://localhost:5000
+* CV Parser: http://localhost:8501
+* Job Matcher: http://localhost:8502
+* Interview Simulation: http://localhost:8503
 
 ---
 
-**Built with ❤️ using Claude AI, Streamlit, and ChromaDB**
+## 📖 User Guide
+
+### CV Parsing
+
+1. Upload a CV
+2. Click “Parse CV”
+3. Review extracted information
+4. Candidate is automatically stored in ChromaDB
+
+### Candidate Matching
+
+1. Enter job title & description
+2. Select number of candidates
+3. Run AI matching
+4. Review ranked candidates
+5. Send acceptance/rejection emails
+
+### Interview Simulation
+
+1. Configure interview settings
+2. Start interview
+3. Candidate answers using:
+
+   * Text
+   * Voice recording
+4. Generate AI evaluation report
+5. Download transcript
+
+---
+
+## 🛠️ Tech Stack
+
+* Python
+* Streamlit
+* Groq API
+* ChromaDB
+* Tesseract OCR
+* Gmail SMTP
+
+---
+
+## 🔧 Troubleshooting
+
+### Tesseract Not Found
+
+Install Tesseract OCR and ensure it exists in your system PATH.
+
+### Email Authentication Failed
+
+* Use Gmail App Passwords
+* Enable 2FA before generating the password
+
+### ChromaDB Error
+
+Delete the `chroma_db` folder and restart the applications.
+
+### API Rate Limit
+
+Groq free-tier requests may have limitations.
+Check usage:
+https://console.groq.com/
+
+---
+
+## 🔐 Security Notes
+
+* Never commit `.env` files
+* Keep API keys secure
+* Use Gmail App Passwords instead of personal passwords
+* ChromaDB stores data locally
+
+---
+
+## 🚀 Future Enhancements
+
+* Video interview analysis
+* Facial expression assessment
+* Multi-language support
+* Calendar integration
+* Recruiter analytics dashboard
+* PDF report generation
+
+---
+
+## 📝 License
+
+This project is intended for educational and internal use.
+
+---
+
+## 🤝 Support
+
+* Groq Docs:
+  https://console.groq.com/docs
+
+* ChromaDB Docs:
+  https://docs.trychroma.com/
+
+---
+
+Built using Groq, Streamlit, and ChromaDB.
