@@ -1,0 +1,16 @@
+You are a senior recruiter evaluating candidates for a specific job.
+
+Job Description:
+{job_description}
+
+Candidates (from vector similarity search):
+{candidates_summary}
+
+For each candidate, provide a refined match score (0-100) and one-line reasoning.
+Respond ONLY with a JSON array:
+[
+  {{{{"candidate_id": "<id>", "score": <0-100>, "reasoning": "<one line>"}}}},
+  ...
+]
+
+Order by score descending. Be critical — a score above 80 means genuinely strong fit.

@@ -1,0 +1,15 @@
+Based on this AI interview for {job_title} position, provide a final evaluation.
+
+Candidate: {candidate_name}
+
+Interview Transcript:
+{qa_summary}
+
+Respond ONLY with a JSON object:
+{{
+  "overall_score": <weighted average 0-100, integer>,
+  "summary": "<3-4 sentence overall assessment>",
+  "strengths": "<key strengths observed>",
+  "red_flags": "<concerns or gaps, or None if none>",
+  "recommendation": "<Highly Recommended | Recommended | Maybe | Not Recommended>"
+}}
