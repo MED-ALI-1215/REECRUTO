@@ -3,13 +3,15 @@ from sqlalchemy.orm import Session
 
 from app.api.dependencies import require_auth
 from app.core.exceptions import CandidateNotFoundError
+from app.core.logging import get_logger
 from app.db.session import get_db
 from app.repositories import interview_repo
 from app.schemas.interview import InterviewResultOut
 from app.services.email_service import (
-    generate_acceptance_email, generate_rejection_email, send_email
+    generate_acceptance_email,
+    generate_rejection_email,
+    send_email,
 )
-from app.core.logging import get_logger
 
 logger = get_logger(__name__)
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])

@@ -9,6 +9,7 @@ Default pipeline (zero Groq calls):
 Optional deep analysis (one Groq call, only when deep=True):
   4. Groq re-ranks the top candidates with full job description context
 """
+
 from sqlalchemy.orm import Session
 
 from app.core.logging import get_logger
@@ -47,7 +48,9 @@ def match_candidates(
     for hit in vector_hits:
         candidate: Candidate | None = db.get(Candidate, hit["candidate_id"])
         if candidate is None:
-            logger.warning("Vector store has ID %s but no DB record — skipping", hit["candidate_id"])
+            logger.warning(
+                "Vector store has ID %s but no DB record — skipping", hit["candidate_id"]
+            )
             continue
 
         breakdown = compute_score(
@@ -58,28 +61,29 @@ def match_candidates(
             certifications_text=candidate.certifications_text or "",
         )
 
-        scored.append({
-            "id": candidate.id,
-            "name": candidate.name,
-            "email": candidate.email,
-            "file_name": candidate.file_name,
-            "match_score": breakdown.final_score,
-            "vector_score": breakdown.vector_score,
-            "skills_score": breakdown.skills_score,
-            "cert_score": breakdown.cert_score,
-            "matched_skills": breakdown.matched_skills,
-            "missing_skills": breakdown.missing_skills,
-            "reasoning": breakdown.reasoning,
-            "structured_info": candidate.structured_info,
-        })
+        scored.append(
+            {
+                "id": candidate.id,
+                "name": candidate.name,
+                "email": candidate.email,
+                "file_name": candidate.file_name,
+                "match_score": breakdown.final_score,
+                "vector_score": breakdown.vector_score,
+                "skills_score": breakdown.skills_score,
+                "cert_score": breakdown.cert_score,
+                "matched_skills": breakdown.matched_skills,
+                "missing_skills": breakdown.missing_skills,
+                "reasoning": breakdown.reasoning,
+                "structured_info": candidate.structured_info,
+            }
+        )
 
     # Sort by final score, keep top n_results
     scored.sort(key=lambda x: x["match_score"], reverse=True)
     top = scored[:n_results]
 
     logger.info(
-        "Matched %d candidates (from %d vector hits), deep=%s",
-        len(top), len(vector_hits), deep
+        "Matched %d candidates (from %d vector hits), deep=%s", len(top), len(vector_hits), deep
     )
 
     if deep and top:
@@ -121,9 +125,13 @@ def _deep_rerank(candidates: list[dict], job_description: str, db: Session) -> l
     t0 = time.monotonic()
     try:
         from groq import Groq
+
         resp = Groq(api_key=settings.GROQ_API_KEY).chat.completions.create(
             messages=[
-                {"role": "system", "content": "You are a senior recruiter. Respond only with valid JSON."},
+                {
+                    "role": "system",
+                    "content": "You are a senior recruiter. Respond only with valid JSON.",
+                },
                 {"role": "user", "content": prompt},
             ],
             model=settings.GROQ_MODEL,
@@ -132,14 +140,23 @@ def _deep_rerank(candidates: list[dict], job_description: str, db: Session) -> l
             timeout=30,
         )
         latency = (time.monotonic() - t0) * 1000
-        log_ai_call(logger, service="match_rerank", model=settings.GROQ_MODEL,
-                    prompt_tokens=resp.usage.prompt_tokens, latency_ms=latency, success=True)
+        log_ai_call(
+            logger,
+            service="match_rerank",
+            model=settings.GROQ_MODEL,
+            prompt_tokens=resp.usage.prompt_tokens,
+            latency_ms=latency,
+            success=True,
+        )
         record_ai_call(
-            db, service="match_rerank", model=settings.GROQ_MODEL,
+            db,
+            service="match_rerank",
+            model=settings.GROQ_MODEL,
             prompt_version="match_rerank_v1",
             prompt_tokens=resp.usage.prompt_tokens,
             completion_tokens=resp.usage.completion_tokens,
-            latency_ms=latency, success=True,
+            latency_ms=latency,
+            success=True,
         )
 
         raw = resp.choices[0].message.content.strip()
@@ -162,7 +179,14 @@ def _deep_rerank(candidates: list[dict], job_description: str, db: Session) -> l
 
     except Exception as e:
         latency = (time.monotonic() - t0) * 1000
-        log_ai_call(logger, service="match_rerank", model=settings.GROQ_MODEL,
-                    prompt_tokens=0, latency_ms=latency, success=False, error=str(e))
+        log_ai_call(
+            logger,
+            service="match_rerank",
+            model=settings.GROQ_MODEL,
+            prompt_tokens=0,
+            latency_ms=latency,
+            success=False,
+            error=str(e),
+        )
         logger.warning("Deep re-rank failed (%s) — using formula scores", e)
         return candidates

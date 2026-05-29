@@ -12,7 +12,7 @@ router = APIRouter(prefix="/jobs", tags=["jobs"])
 class JobMatchIn(BaseModel):
     job_description: str
     n_results: int = 5
-    deep: bool = False   # set True only when you want the Groq re-rank pass
+    deep: bool = False  # set True only when you want the Groq re-rank pass
 
 
 class MatchResult(BaseModel):

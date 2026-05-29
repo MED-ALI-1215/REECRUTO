@@ -1,12 +1,11 @@
 import json
-from datetime import datetime, timedelta, timezone
-from typing import Optional
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy.orm import Session
 
+from app.core.logging import get_logger
 from app.core.security import generate_interview_token
 from app.models.interview import InterviewResult, InterviewSession
-from app.core.logging import get_logger
 
 logger = get_logger(__name__)
 
@@ -14,18 +13,19 @@ SESSION_TTL_DAYS = 7
 
 
 def _now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def _as_utc(dt: datetime) -> datetime:
     """Ensure a datetime is timezone-aware (SQLite returns naive datetimes)."""
     if dt.tzinfo is None:
-        return dt.replace(tzinfo=timezone.utc)
+        return dt.replace(tzinfo=UTC)
     return dt
 
 
-def create_session(db: Session, *, candidate_name: str, candidate_email: str,
-                   job_title: str, job_description: str) -> InterviewSession:
+def create_session(
+    db: Session, *, candidate_name: str, candidate_email: str, job_title: str, job_description: str
+) -> InterviewSession:
     token = generate_interview_token()
     session = InterviewSession(
         token=token,
@@ -43,7 +43,7 @@ def create_session(db: Session, *, candidate_name: str, candidate_email: str,
     return session
 
 
-def get_session(db: Session, token: str) -> Optional[InterviewSession]:
+def get_session(db: Session, token: str) -> InterviewSession | None:
     return db.get(InterviewSession, token)
 
 
@@ -54,10 +54,22 @@ def mark_session_used(db: Session, token: str) -> None:
         db.commit()
 
 
-def save_result(db: Session, *, token: str, candidate_name: str, candidate_email: str,
-                job_title: str, questions: list, answers: list, scores: list,
-                overall_score: float, summary: str, strengths: str,
-                red_flags: str, recommendation: str) -> InterviewResult:
+def save_result(
+    db: Session,
+    *,
+    token: str,
+    candidate_name: str,
+    candidate_email: str,
+    job_title: str,
+    questions: list,
+    answers: list,
+    scores: list,
+    overall_score: float,
+    summary: str,
+    strengths: str,
+    red_flags: str,
+    recommendation: str,
+) -> InterviewResult:
     result = InterviewResult(
         token=token,
         candidate_name=candidate_name,
@@ -83,7 +95,7 @@ def list_results(db: Session) -> list[InterviewResult]:
     return db.query(InterviewResult).order_by(InterviewResult.completed_at.desc()).all()
 
 
-def get_result(db: Session, result_id: int) -> Optional[InterviewResult]:
+def get_result(db: Session, result_id: int) -> InterviewResult | None:
     return db.get(InterviewResult, result_id)
 
 

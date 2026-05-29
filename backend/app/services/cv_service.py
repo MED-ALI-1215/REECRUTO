@@ -2,13 +2,13 @@
 CV parsing and AI extraction service.
 No Streamlit, no HTTP — plain Python in, plain Python out.
 """
+
 import io
 import re
 import time
 import uuid
-from typing import Optional
 
-from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 from app.core.config import get_settings
 from app.core.exceptions import CVExtractionError, GroqAPIError, UnsupportedFileTypeError
@@ -22,8 +22,10 @@ PROMPT_VERSION = "cv_extraction_v1"
 
 # ── Text extractors ───────────────────────────────────────────────────────────
 
+
 def _extract_pdf(data: bytes) -> str:
     import PyPDF2
+
     reader = PyPDF2.PdfReader(io.BytesIO(data))
     text = "".join(page.extract_text() or "" for page in reader.pages)
     if not text.strip():
@@ -33,6 +35,7 @@ def _extract_pdf(data: bytes) -> str:
 
 def _extract_docx(data: bytes) -> str:
     import docx
+
     doc = docx.Document(io.BytesIO(data))
     text = "\n".join(p.text for p in doc.paragraphs)
     if not text.strip():
@@ -44,8 +47,8 @@ def _extract_image(data: bytes) -> str:
     try:
         import pytesseract
         from PIL import Image
-    except ImportError:
-        raise CVExtractionError("OCR not available — install pytesseract and Pillow.")
+    except ImportError as err:
+        raise CVExtractionError("OCR not available — install pytesseract and Pillow.") from err
     text = pytesseract.image_to_string(Image.open(io.BytesIO(data)))
     if not text.strip():
         raise CVExtractionError("No text could be extracted from the image.")
@@ -81,6 +84,7 @@ def extract_text(filename: str, data: bytes) -> str:
 
 # ── AI extraction ─────────────────────────────────────────────────────────────
 
+
 @retry(
     retry=retry_if_exception_type(GroqAPIError),
     stop=stop_after_attempt(3),
@@ -93,6 +97,7 @@ def extract_cv_info_with_ai(cv_text: str, db=None) -> str:
     db is optional — if provided, the AI call is persisted to the ai_calls table.
     """
     from groq import Groq
+
     settings = get_settings()
 
     user_prompt = load_prompt(f"{PROMPT_VERSION}.txt", cv_text=cv_text)
@@ -115,42 +120,73 @@ def extract_cv_info_with_ai(cv_text: str, db=None) -> str:
         prompt_tokens = response.usage.prompt_tokens
         completion_tokens = response.usage.completion_tokens
 
-        log_ai_call(logger, service="cv_extraction", model=settings.GROQ_MODEL,
-                    prompt_tokens=prompt_tokens, latency_ms=latency, success=True)
+        log_ai_call(
+            logger,
+            service="cv_extraction",
+            model=settings.GROQ_MODEL,
+            prompt_tokens=prompt_tokens,
+            latency_ms=latency,
+            success=True,
+        )
 
         if db is not None:
             from app.repositories.ai_call_repo import record_ai_call
-            record_ai_call(db, service="cv_extraction", model=settings.GROQ_MODEL,
-                           prompt_version=PROMPT_VERSION, prompt_tokens=prompt_tokens,
-                           completion_tokens=completion_tokens, latency_ms=latency,
-                           success=True)
+
+            record_ai_call(
+                db,
+                service="cv_extraction",
+                model=settings.GROQ_MODEL,
+                prompt_version=PROMPT_VERSION,
+                prompt_tokens=prompt_tokens,
+                completion_tokens=completion_tokens,
+                latency_ms=latency,
+                success=True,
+            )
 
         return response.choices[0].message.content.strip()
 
     except Exception as e:
         latency = (time.monotonic() - t0) * 1000
-        log_ai_call(logger, service="cv_extraction", model=settings.GROQ_MODEL,
-                    prompt_tokens=0, latency_ms=latency, success=False, error=str(e))
+        log_ai_call(
+            logger,
+            service="cv_extraction",
+            model=settings.GROQ_MODEL,
+            prompt_tokens=0,
+            latency_ms=latency,
+            success=False,
+            error=str(e),
+        )
         if db is not None:
             from app.repositories.ai_call_repo import record_ai_call
-            record_ai_call(db, service="cv_extraction", model=settings.GROQ_MODEL,
-                           prompt_version=PROMPT_VERSION, prompt_tokens=0,
-                           completion_tokens=0, latency_ms=latency,
-                           success=False, error_message=str(e))
+
+            record_ai_call(
+                db,
+                service="cv_extraction",
+                model=settings.GROQ_MODEL,
+                prompt_version=PROMPT_VERSION,
+                prompt_tokens=0,
+                completion_tokens=0,
+                latency_ms=latency,
+                success=False,
+                error_message=str(e),
+            )
         raise GroqAPIError(f"Groq CV extraction failed: {e}") from e
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
-def extract_email_from_text(text: str) -> Optional[str]:
+
+def extract_email_from_text(text: str) -> str | None:
     pattern = r"[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}"
     matches = re.findall(pattern, text or "")
     return matches[0] if matches else None
 
 
-def extract_name_from_structured(structured_info: str) -> Optional[str]:
+def extract_name_from_structured(structured_info: str) -> str | None:
     for line in (structured_info or "").splitlines():
-        m = re.match(r"(?:\d+\.\s*)?(?:full\s*name|name)\s*[:\-]\s*(.+)", line.strip(), re.IGNORECASE)
+        m = re.match(
+            r"(?:\d+\.\s*)?(?:full\s*name|name)\s*[:\-]\s*(.+)", line.strip(), re.IGNORECASE
+        )
         if m:
             name = m.group(1).strip().strip("*").strip()
             if name and name.lower() not in ("n/a", "unknown", "not provided", ""):
@@ -158,7 +194,7 @@ def extract_name_from_structured(structured_info: str) -> Optional[str]:
     return None
 
 
-def extract_email_from_structured(structured_info: str) -> Optional[str]:
+def extract_email_from_structured(structured_info: str) -> str | None:
     for line in (structured_info or "").splitlines():
         m = re.match(r"(?:\d+\.\s*)?e[-\s]?mail\s*[:\-]\s*(.+)", line.strip(), re.IGNORECASE)
         if m:

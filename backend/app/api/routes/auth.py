@@ -2,13 +2,12 @@ from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel
 
 from app.core.security import create_access_token
-from app.core.config import get_settings
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 # ── Temporary hardcoded credentials — replace with DB users in Phase 2 ────────
 _RECRUITER_USERNAME = "admin"
-_RECRUITER_PASSWORD = "admin"   # override in .env via env var later
+_RECRUITER_PASSWORD = "admin"  # override in .env via env var later
 
 
 class LoginIn(BaseModel):

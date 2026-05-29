@@ -1,5 +1,6 @@
-from pydantic_settings import BaseSettings, SettingsConfigDict
 from functools import lru_cache
+
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
@@ -10,18 +11,18 @@ class Settings(BaseSettings):
     # ── Databases ─────────────────────────────────────────────────────────────
     DATABASE_URL: str = "postgresql+psycopg2://reecruto:reecruto@localhost:5432/reecruto"
     CHROMA_DB_PATH: str = "./chroma_db"
-    CHROMA_HOST: str = "localhost"       # used in Docker (server mode)
+    CHROMA_HOST: str = "localhost"  # used in Docker (server mode)
     CHROMA_PORT: int = 8000
-    CHROMA_USE_SERVER: bool = False      # False = local file mode, True = Docker server
+    CHROMA_USE_SERVER: bool = False  # False = local file mode, True = Docker server
 
     # ── Email ─────────────────────────────────────────────────────────────────
     EMAIL_ADDRESS: str
     EMAIL_PASSWORD: str
 
     # ── App ───────────────────────────────────────────────────────────────────
-    APP_BASE_URL: str = "http://localhost:8503"   # candidate interview base URL
+    APP_BASE_URL: str = "http://localhost:8503"  # candidate interview base URL
     SECRET_KEY: str = "change-me-before-production"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 8    # 8 hours
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 8  # 8 hours
 
     # ── File upload limits ────────────────────────────────────────────────────
     MAX_UPLOAD_SIZE_MB: int = 10

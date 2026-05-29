@@ -1,21 +1,29 @@
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
 
 from sqlalchemy.orm import Session
 
+from app.core.logging import get_logger
 from app.db.vector import get_candidates_collection
 from app.models.candidate import Candidate
-from app.core.logging import get_logger
 
 logger = get_logger(__name__)
 
 
 # ── PostgreSQL operations ─────────────────────────────────────────────────────
 
+
 def create_candidate(
-    db: Session, *, id: str, name: str, email: Optional[str],
-    file_name: Optional[str], structured_info: str, cv_text: str,
-    skills_text: str = "", experience_text: str = "", certifications_text: str = "",
+    db: Session,
+    *,
+    id: str,
+    name: str,
+    email: str | None,
+    file_name: str | None,
+    structured_info: str,
+    cv_text: str,
+    skills_text: str = "",
+    experience_text: str = "",
+    certifications_text: str = "",
 ) -> Candidate:
     candidate = Candidate(
         id=id,
@@ -27,7 +35,7 @@ def create_candidate(
         skills_text=skills_text,
         experience_text=experience_text,
         certifications_text=certifications_text,
-        uploaded_at=datetime.now(timezone.utc),
+        uploaded_at=datetime.now(UTC),
     )
     db.add(candidate)
     db.commit()
@@ -35,7 +43,7 @@ def create_candidate(
     return candidate
 
 
-def get_candidate(db: Session, candidate_id: str) -> Optional[Candidate]:
+def get_candidate(db: Session, candidate_id: str) -> Candidate | None:
     return db.get(Candidate, candidate_id)
 
 
@@ -53,6 +61,7 @@ def delete_candidate(db: Session, candidate_id: str) -> bool:
 
 
 # ── ChromaDB operations ───────────────────────────────────────────────────────
+
 
 def add_to_vector_store(candidate_id: str, chroma_document: str) -> None:
     """
@@ -95,7 +104,7 @@ def search_candidates_vector(query: str, n_results: int = 10) -> list[dict]:
         return []
 
     out = []
-    for cid, distance in zip(results["ids"][0], results["distances"][0]):
+    for cid, distance in zip(results["ids"][0], results["distances"][0], strict=False):
         # Convert L2 distance to 0-100 score — lower distance = better match
         match_score = round(max(0.0, min(100.0, 100 - distance * 50)), 1)
         out.append({"candidate_id": cid, "distance": distance, "match_score": match_score})

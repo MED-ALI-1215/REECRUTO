@@ -3,19 +3,26 @@ from sqlalchemy.orm import Session
 
 from app.api.dependencies import require_auth
 from app.core.config import get_settings
+from app.core.logging import get_logger
 from app.db.session import get_db
 from app.repositories import interview_repo
 from app.repositories.interview_repo import is_session_valid
-from app.schemas.interview import AnswerIn, InterviewCreateIn, InterviewResultOut, InterviewSessionOut
-from app.services import interview_service, email_service
-from app.core.logging import get_logger
+from app.schemas.interview import (
+    AnswerIn,
+    InterviewCreateIn,
+    InterviewResultOut,
+    InterviewSessionOut,
+)
+from app.services import email_service, interview_service
 
 logger = get_logger(__name__)
 router = APIRouter(prefix="/interviews", tags=["interviews"])
 
 
 @router.post("", response_model=InterviewSessionOut, status_code=status.HTTP_201_CREATED)
-def create_interview(body: InterviewCreateIn, db: Session = Depends(get_db), _: str = Depends(require_auth)):
+def create_interview(
+    body: InterviewCreateIn, db: Session = Depends(get_db), _: str = Depends(require_auth)
+):
     session = interview_repo.create_session(
         db,
         candidate_name=body.candidate_name,
@@ -26,7 +33,9 @@ def create_interview(body: InterviewCreateIn, db: Session = Depends(get_db), _: 
     settings = get_settings()
     interview_link = f"{settings.APP_BASE_URL}?token={session.token}"
     try:
-        subject, html = email_service.generate_invite_email(body.candidate_name, body.job_title, interview_link)
+        subject, html = email_service.generate_invite_email(
+            body.candidate_name, body.job_title, interview_link
+        )
         email_service.send_email(body.candidate_email, subject, html)
     except Exception as e:
         logger.error("Failed to send invite email to %s: %s", body.candidate_email, e)
@@ -61,7 +70,9 @@ def score_answer(token: str, body: AnswerIn, db: Session = Depends(get_db)):
     session = interview_repo.get_session(db, token)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found.")
-    result = interview_service.score_answer(body.question, body.answer, session.job_title, session.job_description)
+    result = interview_service.score_answer(
+        body.question, body.answer, session.job_title, session.job_description
+    )
     return result
 
 
@@ -83,15 +94,22 @@ def finish_interview(token: str, body: dict, db: Session = Depends(get_db)):
         )
     except Exception as e:
         logger.error("Final report generation failed: %s", e)
-        raise HTTPException(status_code=502, detail="Report generation failed.")
+        raise HTTPException(status_code=502, detail="Report generation failed.") from e
 
     interview_repo.mark_session_used(db, token)
     result = interview_repo.save_result(
-        db, token=token,
-        candidate_name=session.candidate_name, candidate_email=session.candidate_email,
-        job_title=session.job_title, questions=questions, answers=answers, scores=scores,
-        overall_score=report["overall_score"], summary=report.get("summary", ""),
-        strengths=report.get("strengths", ""), red_flags=report.get("red_flags", ""),
+        db,
+        token=token,
+        candidate_name=session.candidate_name,
+        candidate_email=session.candidate_email,
+        job_title=session.job_title,
+        questions=questions,
+        answers=answers,
+        scores=scores,
+        overall_score=report["overall_score"],
+        summary=report.get("summary", ""),
+        strengths=report.get("strengths", ""),
+        red_flags=report.get("red_flags", ""),
         recommendation=report.get("recommendation", "Maybe"),
     )
     return result

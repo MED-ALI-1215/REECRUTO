@@ -1,5 +1,6 @@
-from datetime import datetime, timezone
-from sqlalchemy import String, Text, DateTime
+from datetime import UTC, datetime
+
+from sqlalchemy import DateTime, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.session import Base
@@ -19,13 +20,15 @@ class Candidate(Base):
 
     # ── Extracted semantic fields (parsed from structured_info at upload time) ─
     # These power the local scoring formula — no extra Groq call needed.
-    skills_text: Mapped[str | None] = mapped_column(Text, nullable=True)         # comma-separated skills
-    experience_text: Mapped[str | None] = mapped_column(Text, nullable=True)     # job titles + companies
-    certifications_text: Mapped[str | None] = mapped_column(Text, nullable=True) # cert names
+    skills_text: Mapped[str | None] = mapped_column(Text, nullable=True)  # comma-separated skills
+    experience_text: Mapped[str | None] = mapped_column(
+        Text, nullable=True
+    )  # job titles + companies
+    certifications_text: Mapped[str | None] = mapped_column(Text, nullable=True)  # cert names
 
     uploaded_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
-        default=lambda: datetime.now(timezone.utc),
+        default=lambda: datetime.now(UTC),
     )
 
     def __repr__(self) -> str:

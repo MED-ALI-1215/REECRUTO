@@ -1,6 +1,5 @@
 import logging
 import sys
-from typing import Any
 
 
 def setup_logging(level: str = "INFO") -> None:
@@ -26,9 +25,16 @@ def get_logger(name: str) -> logging.Logger:
     return logging.getLogger(name)
 
 
-def log_ai_call(logger: logging.Logger, *, service: str, model: str,
-                prompt_tokens: int, latency_ms: float, success: bool,
-                error: str | None = None) -> None:
+def log_ai_call(
+    logger: logging.Logger,
+    *,
+    service: str,
+    model: str,
+    prompt_tokens: int,
+    latency_ms: float,
+    success: bool,
+    error: str | None = None,
+) -> None:
     """
     Structured log line for every Groq API call.
     Gives visibility into cost (tokens) and reliability (success rate).

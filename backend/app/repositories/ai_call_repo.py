@@ -1,8 +1,10 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+
+from sqlalchemy import Integer, func
 from sqlalchemy.orm import Session
 
-from app.models.ai_call import AICall
 from app.core.logging import get_logger
+from app.models.ai_call import AICall
 
 logger = get_logger(__name__)
 
@@ -20,7 +22,7 @@ def record_ai_call(
     error_message: str | None = None,
 ) -> AICall:
     call = AICall(
-        created_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
         service=service,
         model=model,
         prompt_version=prompt_version,
@@ -46,16 +48,13 @@ def get_stats(db: Session) -> dict:
     Quick summary of AI call usage.
     Exposed via GET /api/admin/ai-stats.
     """
-    from sqlalchemy import func, Integer
     rows = (
         db.query(
             AICall.service,
             func.count(AICall.id).label("total_calls"),
             func.sum(AICall.prompt_tokens).label("total_tokens"),
             func.avg(AICall.latency_ms).label("avg_latency_ms"),
-            func.sum(
-                (AICall.success == False).cast(Integer)  # noqa
-            ).label("failures"),
+            func.sum((AICall.success == False).cast(Integer)).label("failures"),  # noqa
         )
         .group_by(AICall.service)
         .all()

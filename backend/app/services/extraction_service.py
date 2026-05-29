@@ -5,16 +5,17 @@ discrete semantic fields: skills, experience, certifications.
 
 No API calls — pure text parsing.
 """
+
 import re
 from dataclasses import dataclass
 
 
 @dataclass
 class ParsedCV:
-    skills_text: str        # comma-separated list of skills
-    experience_text: str    # job titles + companies, one per line
+    skills_text: str  # comma-separated list of skills
+    experience_text: str  # job titles + companies, one per line
     certifications_text: str
-    chroma_document: str    # compact text to embed in ChromaDB (signal only, no noise)
+    chroma_document: str  # compact text to embed in ChromaDB (signal only, no noise)
 
 
 # ── Section header patterns ───────────────────────────────────────────────────
@@ -22,31 +23,28 @@ class ParsedCV:
 _SECTION_PATTERNS = {
     "skills": re.compile(
         r"(?:^|\n)\s*(?:\d+\.\s*)?(?:skills?|technical skills?|core competenc(?:y|ies)|technologies)\s*[:\-]?\s*\n",
-        re.IGNORECASE
+        re.IGNORECASE,
     ),
     "experience": re.compile(
         r"(?:^|\n)\s*(?:\d+\.\s*)?(?:work experience|experience|employment(?: history)?|professional background)\s*[:\-]?\s*\n",
-        re.IGNORECASE
+        re.IGNORECASE,
     ),
     "certifications": re.compile(
         r"(?:^|\n)\s*(?:\d+\.\s*)?(?:certifications?|certificates?|licenses?|credentials?)\s*[:\-]?\s*\n",
-        re.IGNORECASE
+        re.IGNORECASE,
     ),
     "projects": re.compile(
         r"(?:^|\n)\s*(?:\d+\.\s*)?(?:projects?|personal projects?|key projects?)\s*[:\-]?\s*\n",
-        re.IGNORECASE
+        re.IGNORECASE,
     ),
-    "education": re.compile(
-        r"(?:^|\n)\s*(?:\d+\.\s*)?education\s*[:\-]?\s*\n",
-        re.IGNORECASE
-    ),
+    "education": re.compile(r"(?:^|\n)\s*(?:\d+\.\s*)?education\s*[:\-]?\s*\n", re.IGNORECASE),
 }
 
 # Next-section pattern — used to find where a section ends
 _NEXT_SECTION = re.compile(
     r"(?:^|\n)\s*(?:\d+\.\s*)?(?:skills?|technical skills?|work experience|experience|employment"
     r"|certifications?|projects?|education|summary|objective|references?|languages?)\s*[:\-]?\s*\n",
-    re.IGNORECASE
+    re.IGNORECASE,
 )
 
 
@@ -81,9 +79,7 @@ def parse_structured_info(structured_info: str) -> ParsedCV:
     # ── Skills ────────────────────────────────────────────────────────────────
     skills_raw = _extract_section(text, _SECTION_PATTERNS["skills"])
     # Also pick up inline "Skills: Python, FastAPI, ..." lines
-    inline_skills = re.findall(
-        r"(?:skills?|technologies)\s*[:\-]\s*(.+)", text, re.IGNORECASE
-    )
+    inline_skills = re.findall(r"(?:skills?|technologies)\s*[:\-]\s*(.+)", text, re.IGNORECASE)
     skills_lines = _clean_lines(skills_raw) + [s.strip() for s in inline_skills]
     # Flatten comma-separated items within lines
     skills_flat = []
@@ -96,9 +92,12 @@ def parse_structured_info(structured_info: str) -> ParsedCV:
     exp_lines = _clean_lines(exp_raw)
     # Keep only lines that look like job titles or companies (not bullet responsibilities)
     title_lines = [
-        l for l in exp_lines
-        if len(l) < 120 and not l.lower().startswith(("responsible", "developed", "managed",
-                                                        "led", "built", "worked", "collaborated"))
+        line
+        for line in exp_lines
+        if len(line) < 120
+        and not line.lower().startswith(
+            ("responsible", "developed", "managed", "led", "built", "worked", "collaborated")
+        )
     ]
     experience_text = "\n".join(title_lines[:20])  # cap at 20 lines
 

@@ -4,12 +4,12 @@ from sqlalchemy.orm import Session
 from app.api.dependencies import require_auth
 from app.core.config import get_settings
 from app.core.exceptions import FileTooLargeError, UnsupportedFileTypeError
+from app.core.logging import get_logger
 from app.db.session import get_db
 from app.repositories import candidate_repo
 from app.schemas.candidate import CandidateListOut, CandidateOut
 from app.services import cv_service
 from app.services.extraction_service import parse_structured_info
-from app.core.logging import get_logger
 
 logger = get_logger(__name__)
 router = APIRouter(prefix="/candidates", tags=["candidates"])
@@ -60,7 +60,10 @@ async def upload_candidate(
 
     logger.info(
         "Candidate created: id=%s name=%s skills=%d chars chroma_doc=%d chars",
-        candidate_id, name, len(parsed.skills_text), len(parsed.chroma_document)
+        candidate_id,
+        name,
+        len(parsed.skills_text),
+        len(parsed.chroma_document),
     )
     return candidate
 
@@ -72,8 +75,11 @@ def list_candidates(db: Session = Depends(get_db), _: str = Depends(require_auth
 
 
 @router.delete("/{candidate_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_candidate(candidate_id: str, db: Session = Depends(get_db), _: str = Depends(require_auth)):
+def delete_candidate(
+    candidate_id: str, db: Session = Depends(get_db), _: str = Depends(require_auth)
+):
     from app.core.exceptions import CandidateNotFoundError
+
     if not candidate_repo.delete_candidate(db, candidate_id):
         raise CandidateNotFoundError()
     candidate_repo.remove_from_vector_store(candidate_id)
