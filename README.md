@@ -99,7 +99,7 @@ Health check: `http://localhost:8000/health`
 
 ### 3. Frontend
 ```bash
-cd reecruto-frontend
+cd frontend
 cp .env.example .env   # set VITE_API_URL=http://localhost:8000
 npm install
 npm run dev            # runs on http://localhost:3000
@@ -108,7 +108,7 @@ npm run dev            # runs on http://localhost:3000
 ### 4. Login
 ```
 Username: admin
-Password: reecruto-admin
+Password: admin
 ```
 
 ---
