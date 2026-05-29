@@ -7,7 +7,7 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 # ── Temporary hardcoded credentials — replace with DB users in Phase 2 ────────
 _RECRUITER_USERNAME = "admin"
-_RECRUITER_PASSWORD = "admin"  # override in .env via env var later
+_RECRUITER_PASSWORD = "reecruto-admin"  # override in .env via env var later
 
 
 class LoginIn(BaseModel):
