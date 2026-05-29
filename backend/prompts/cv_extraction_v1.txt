@@ -1,0 +1,20 @@
+Analyze this CV and extract the following information in a structured format:
+
+CV Text:
+{cv_text}
+
+Please extract and clearly label each section:
+1. Full Name
+2. Email
+3. Phone Number
+4. Education (degree, institution, year)
+5. Work Experience (job title, company, duration, key responsibilities)
+6. Skills (technical and soft skills)
+7. Certifications
+8. Summary / Objective
+
+Use this exact format for the first two fields:
+Full Name: <value>
+Email: <value>
+
+Then continue with the remaining sections using headers.

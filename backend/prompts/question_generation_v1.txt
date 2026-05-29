@@ -1,0 +1,10 @@
+Generate exactly {n} professional interview questions for a {job_title} position.
+
+Job Description:
+{job_description}
+
+Requirements:
+- Mix of technical and behavioral questions
+- Relevant to the specific role and skills mentioned
+- Clear and professional
+- Return ONLY a numbered list of {n} questions, nothing else.
