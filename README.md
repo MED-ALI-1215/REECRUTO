@@ -9,8 +9,8 @@ AI-powered recruitment platform. Automates CV parsing, semantic candidate matchi
 | Step | Who | What happens |
 |---|---|---|
 | 1 | Recruiter | Uploads candidate CVs (PDF, DOCX, TXT, image) |
-| 2 | System | AI extracts structured profile — name, email, skills, experience, certifications |
-| 3 | Recruiter | Pastes a job description → ranked candidates with match scores |
+| 2 | System | AI extracts a structured JSON profile — skills, experience (with technologies used), projects, certifications |
+| 3 | Recruiter | Saves a job description → its skills are extracted once, every CV is ranked with per-skill evidence |
 | 4 | Recruiter | Sends interview invite — candidate receives a one-time link by email |
 | 5 | Candidate | Completes AI interview — questions generated per role, each answer scored in real time |
 | 6 | Recruiter | Reviews completed interviews on dashboard — accepts or rejects with one click |
@@ -27,20 +27,21 @@ REECRUTO/
 │   │   ├── api/routes/       candidates, jobs, interviews, dashboard, auth, admin
 │   │   ├── core/             config, logging, security, exceptions, prompts
 │   │   ├── db/               SQLAlchemy session, ChromaDB client
-│   │   ├── models/           ORM models (candidates, interview_sessions, interview_results, ai_calls)
-│   │   ├── repositories/     all DB access (candidate_repo, interview_repo, ai_call_repo)
+│   │   ├── models/           ORM models (candidates, jobs, job_matches, interview_sessions, interview_results, ai_calls)
+│   │   ├── repositories/     all DB access (candidate_repo, job_repo, interview_repo, ai_call_repo)
 │   │   ├── schemas/          Pydantic request/response schemas
-│   │   └── services/         business logic (cv, matching, scoring, interview, email, extraction)
+│   │   └── services/         business logic (cv, extraction, job, scoring, skills, semantic, interview, email)
 │   ├── prompts/              versioned AI prompt templates
 │   ├── alembic/              database migrations
-│   ├── tests/                86 tests — services, repositories, API, security, scoring
+│   ├── scripts/              skill_similarity.py — tune the semantic-matching threshold
+│   ├── tests/                98 tests — services, repositories, API, security, scoring, jobs
 │   ├── requirements.txt      pinned dependencies
 │   ├── Dockerfile
 │   └── .env.example
-├── reecruto-frontend/        React + Vite frontend
+├── frontend/                 React + Vite frontend
 │   └── src/
-│       ├── pages/            Login, Upload, Match, Dashboard, Interview
-│       ├── components/       Layout (sidebar nav)
+│       ├── pages/            Login, Upload, Match (jobs grid), JobDetail, Dashboard, Interview
+│       ├── components/       Layout (sidebar nav), shared UI (chips, score bars, toast)
 │       └── api/              axios client + all API calls
 ├── docker-compose.yml        PostgreSQL + ChromaDB + backend
 ├── .github/workflows/ci.yml  lint + format check + tests on every push
@@ -54,14 +55,14 @@ REECRUTO/
 **Backend**
 - FastAPI + Uvicorn
 - SQLAlchemy 2.0 + Alembic (PostgreSQL in production, SQLite for local dev)
-- ChromaDB — vector embeddings for semantic candidate search
-- Groq API (llama-3.3-70b-versatile) — CV extraction, question generation, answer scoring
+- ChromaDB — semantic retrieval of CVs and semantic skill matching
+- Groq API (`openai/gpt-oss-120b`, JSON mode) — CV & job extraction, question generation, answer scoring
 - JWT authentication (python-jose)
 - Tenacity — automatic retry with exponential backoff on all Groq calls
 
 **Frontend**
-- React 18 + Vite
-- React Router v6
+- React 19 + Vite
+- React Router v7
 - Axios
 - Lucide React (icons)
 
@@ -99,17 +100,20 @@ Health check: `http://localhost:8000/health`
 
 ### 3. Frontend
 ```bash
-cd reecruto-frontend
-cp .env.example .env   # set VITE_API_URL=http://localhost:8000
+cd frontend
 npm install
 npm run dev            # runs on http://localhost:3000
 ```
+
+The API URL defaults to `http://localhost:8000`; set `VITE_API_URL` in `frontend/.env` to change it.
 
 ### 4. Login
 ```
 Username: admin
 Password: reecruto-admin
 ```
+
+Override them with `RECRUITER_USERNAME` / `RECRUITER_PASSWORD` in `backend/.env`.
 
 ---
 
@@ -125,8 +129,14 @@ Copy `backend/.env.example` to `backend/.env` and fill in:
 | `SECRET_KEY` | ✅ | Random 64-char string — generate with `python3 -c "import secrets; print(secrets.token_hex(32))"` |
 | `APP_BASE_URL` | ✅ | Base URL for candidate interview links — `http://localhost:3000/interview` for local dev |
 | `DATABASE_URL` | ✅ | `sqlite:///./reecruto.db` for local dev, PostgreSQL URL for production |
-| `GROQ_MODEL` | — | Default: `llama-3.3-70b-versatile` |
+| `RECRUITER_USERNAME` / `RECRUITER_PASSWORD` | — | Recruiter login. Default: `admin` / `reecruto-admin` |
+| `GROQ_MODEL` | — | Default: `openai/gpt-oss-120b` |
 | `CHROMA_USE_SERVER` | — | `false` for local file mode, `true` for Docker server mode |
+| `MATCH_PREFILTER_MIN_CVS` | — | Number of CVs from which ChromaDB pre-selects before scoring. Below it, every CV is scored. Default: 500 |
+| `MATCH_RETRIEVE_TOP_K` | — | How many CVs ChromaDB keeps per search when pre-selecting. Default: 100 |
+| `SEMANTIC_SKILLS_ENABLED` | — | Semantic skill matching ("Torch" ≈ "PyTorch"). Default: `true` |
+| `SKILL_SIMILARITY_THRESHOLD` | — | Minimum similarity (0–1) for two skill names to count as the same. Default: 0.80 |
+| `SEMANTIC_MATCH_FACTOR` | — | Weight of a similar-skill match vs an exact one. Default: 0.8 |
 | `MAX_UPLOAD_SIZE_MB` | — | Default: 10 |
 
 ---
@@ -163,7 +173,7 @@ DATABASE_URL=sqlite:///:memory: SECRET_KEY=any-long-string-here \
 python -m pytest tests/ -v
 ```
 
-86 tests covering: JWT security, CV parsing, interview service, repositories, all API endpoints, scoring formula, AI call logging.
+98 tests covering: JWT security, CV parsing, interview service, repositories, all API endpoints, evidence scoring, skill normalisation, saved jobs, ChromaDB retrieve → rank, AI call logging.
 
 All external calls (Groq, SMTP) are mocked — tests run without real credentials.
 
@@ -171,19 +181,57 @@ All external calls (Groq, SMTP) are mocked — tests run without real credential
 
 ## Matching algorithm
 
-Candidate scoring uses a 3-signal formula with no mandatory Groq API call:
+Matching is a two-stage **retrieve → rank** pipeline. No LLM call happens per CV:
+the job's skills are extracted once (one Groq call) when the job is saved.
+
+### 1. Retrieve (ChromaDB, recall)
+
+Every CV is embedded in ChromaDB as a compact document (summary, skills, job titles,
+projects, certifications — no contact details). Once there are at least
+`MATCH_PREFILTER_MIN_CVS` CVs, ChromaDB pre-selects the `MATCH_RETRIEVE_TOP_K` CVs
+closest to the job; the others are marked "not pre-selected". Below that threshold
+every CV is scored.
+
+### 2. Rank (evidence-based scoring, precision)
+
+For each skill the job asks for, the matcher looks for **proof** in the CV's JSON profile:
+
+| Evidence | Value |
+|---|---|
+| Only listed in "skills" | 0.4 |
+| Used in a project | 0.8 |
+| Used in professional experience | 1.0 |
+| Covered by a certification | +0.2 (max 1.0) |
 
 ```
-final_score = (vector_similarity × 0.40) + (skills_overlap × 0.40) + (cert_bonus × 0.20)
+score = 0.70 × required skills + 0.20 × nice-to-have skills + 0.10 × soft skills
 ```
 
-**Vector similarity** — ChromaDB semantic search on a compact embedding document built from skills, experience titles, and projects only (not raw CV noise).
+Categories the job doesn't mention are dropped and the weights re-normalised
+(e.g. no nice-to-have skills → 0.90 / 0.10).
 
-**Skills overlap** — job description is matched against a curated vocabulary of ~120 tech skills. Only recognized terms are compared — French words, stopwords, and sentence fragments are ignored. Matched and missing skills are returned per candidate.
+- **Skill normalisation** — aliases (`Postgres` = `PostgreSQL`, `K8s` = `Kubernetes`) and
+  implied skills (`PostgreSQL` ⇒ `SQL`, `PyTorch` ⇒ `Deep Learning` ⇒ `Machine Learning`).
+- **Semantic skill matching** — ChromaDB keeps a vocabulary of every skill name seen in CVs.
+  A job skill with no exact match can be proven by a similar one (cosine similarity ≥
+  `SKILL_SIMILARITY_THRESHOLD`), worth `SEMANTIC_MATCH_FACTOR` of the evidence.
+- **Explainability** — every skill keeps its sources ("Experience: Generative AI Intern @ Talan",
+  "Project: REECRUTO (≈ torch, 86%)"), shown on the job page.
 
-**Certification bonus** — 100 if job requires certs and candidate has matching ones, 75 if certs not required, 50 if required but missing.
+### Saved jobs
 
-**Deep mode** (optional, one Groq call) — recruiter can request a Groq re-ranking pass on top of the formula for a second opinion on close calls.
+Jobs are stored with their extracted skills (editable by the recruiter). The Job Matcher shows
+a grid of jobs; "Search new CVs" scores only the CVs uploaded since the last search, and
+"Rescore all" recomputes every match (also needed after the scoring formula changes —
+matches carry a `scoring_version`).
+
+Tune the semantic threshold with:
+
+```bash
+cd backend
+python -m scripts.skill_similarity                    # built-in examples
+python -m scripts.skill_similarity "torch" "pytorch"  # your own pair
+```
 
 ---
 
@@ -192,14 +240,14 @@ final_score = (vector_similarity × 0.40) + (skills_overlap × 0.40) + (cert_bon
 All Groq prompts live in `backend/prompts/` as versioned text files:
 
 ```
-cv_extraction_v1.txt
+cv_extraction_v2.txt        JSON profile (v1 kept for reference)
+job_extraction_v1.txt       required / nice-to-have / soft skills of a job
 question_generation_v1.txt
 answer_scoring_v1.txt
 final_report_v1.txt
-match_rerank_v1.txt
 ```
 
-To update a prompt, edit the `.txt` file — no code changes needed. Every Groq call is logged to the `ai_calls` table (service, model, tokens, latency, success/failure). View stats at `GET /api/admin/ai-stats`.
+To update a prompt, edit the `.txt` file — no code changes needed (restart the backend: prompts are cached). Every Groq call is logged to the `ai_calls` table (service, model, tokens, latency, success/failure). View stats at `GET /api/admin/ai-stats`.
 
 ---
 
@@ -213,7 +261,12 @@ Full interactive docs at `http://localhost:8000/docs` when the backend is runnin
 | POST | `/api/candidates` | ✅ | Upload and parse a CV |
 | GET | `/api/candidates` | ✅ | List all candidates |
 | DELETE | `/api/candidates/{id}` | ✅ | Remove a candidate |
-| POST | `/api/jobs/match` | ✅ | Match candidates to a job description |
+| GET | `/api/jobs` | ✅ | Saved jobs (grid) with best score and new CVs count |
+| POST | `/api/jobs` | ✅ | Save a job, extract its skills, score every CV |
+| GET | `/api/jobs/{id}` | ✅ | Job, skills and ranked candidates with evidence |
+| PATCH | `/api/jobs/{id}` | ✅ | Edit title, description or skills (rescores) |
+| POST | `/api/jobs/{id}/match` | ✅ | Score new CVs (`?rescore_all=true` for all) |
+| DELETE | `/api/jobs/{id}` | ✅ | Delete a job and its matches |
 | POST | `/api/interviews` | ✅ | Create session + send invite email |
 | GET | `/api/interviews/{token}` | — | Load interview session (candidate) |
 | POST | `/api/interviews/{token}/questions` | — | Generate interview questions |
@@ -230,9 +283,9 @@ Full interactive docs at `http://localhost:8000/docs` when the backend is runnin
 ## CV format recommendations
 
 For best matching results:
-- CVs should use English skill names (Python, FastAPI, Docker — not French equivalents)
-- Section headers in English (Skills, Work Experience, Certifications)
-- PDF with a text layer, DOCX, or TXT — scanned image PDFs are not supported
+- PDF with a text layer, DOCX, or TXT — scanned image PDFs are not supported (`.doc` is not supported either)
+- CVs in other languages work: the extraction prompt translates the profile to English
+- CVs uploaded before the JSON extraction (v2) must be re-uploaded — they are flagged "Re-upload CV"
 - Multi-page PDFs are fully supported
 
 ---

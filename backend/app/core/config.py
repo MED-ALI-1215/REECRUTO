@@ -1,27 +1,32 @@
-from pydantic_settings import BaseSettings, SettingsConfigDict
 from functools import lru_cache
+
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
     # ── AI ────────────────────────────────────────────────────────────────────
     GROQ_API_KEY: str
-    GROQ_MODEL: str = "llama-3.3-70b-versatile"
+    GROQ_MODEL: str = "openai/gpt-oss-120b"
 
     # ── Databases ─────────────────────────────────────────────────────────────
     DATABASE_URL: str = "postgresql+psycopg2://reecruto:reecruto@localhost:5432/reecruto"
     CHROMA_DB_PATH: str = "./chroma_db"
-    CHROMA_HOST: str = "localhost"       # used in Docker (server mode)
+    CHROMA_HOST: str = "localhost"  # used in Docker (server mode)
     CHROMA_PORT: int = 8000
-    CHROMA_USE_SERVER: bool = False      # False = local file mode, True = Docker server
+    CHROMA_USE_SERVER: bool = False  # False = local file mode, True = Docker server
 
     # ── Email ─────────────────────────────────────────────────────────────────
     EMAIL_ADDRESS: str
     EMAIL_PASSWORD: str
 
     # ── App ───────────────────────────────────────────────────────────────────
-    APP_BASE_URL: str = "http://localhost:8503"   # candidate interview base URL
+    APP_BASE_URL: str = "http://localhost:3000/interview"  # candidate interview base URL
     SECRET_KEY: str = "change-me-before-production"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 8    # 8 hours
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 8  # 8 hours
+
+    # ── Recruiter login (single account until DB users exist) ────────────────
+    RECRUITER_USERNAME: str = "admin"
+    RECRUITER_PASSWORD: str = "reecruto-admin"
 
     # ── Matching (ChromaDB) ───────────────────────────────────────────────────
     # Stage 1 "retrieve": when there are at least MATCH_PREFILTER_MIN_CVS CVs,
@@ -37,7 +42,14 @@ class Settings(BaseSettings):
 
     # ── File upload limits ────────────────────────────────────────────────────
     MAX_UPLOAD_SIZE_MB: int = 10
-    ALLOWED_EXTENSIONS: list[str] = ["pdf", "docx", "doc", "txt", "png", "jpg", "jpeg"]
+    ALLOWED_EXTENSIONS: list[str] = [
+        "pdf",
+        "docx",
+        "txt",
+        "png",
+        "jpg",
+        "jpeg",
+    ]  # no .doc: python-docx reads .docx only
 
     model_config = SettingsConfigDict(
         env_file=".env",

@@ -18,8 +18,8 @@ from app.core.logging import get_logger
 from app.core.prompts import load_prompt
 from app.models.job import Job
 from app.repositories import job_repo
-from app.services.extraction_service import load_profile
 from app.services import semantic_service
+from app.services.extraction_service import load_profile
 from app.services.scoring_service import SCORING_VERSION, compute_match, profile_skill_names
 from app.services.skills import normalize_list
 

@@ -1,6 +1,5 @@
 import secrets
-from datetime import datetime, timedelta, timezone
-from typing import Optional
+from datetime import UTC, datetime, timedelta
 
 from jose import JWTError, jwt
 
@@ -9,9 +8,9 @@ from app.core.config import get_settings
 ALGORITHM = "HS256"
 
 
-def create_access_token(subject: str, expires_delta: Optional[timedelta] = None) -> str:
+def create_access_token(subject: str, expires_delta: timedelta | None = None) -> str:
     settings = get_settings()
-    expire = datetime.now(timezone.utc) + (
+    expire = datetime.now(UTC) + (
         expires_delta or timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     )
     return jwt.encode(
@@ -21,7 +20,7 @@ def create_access_token(subject: str, expires_delta: Optional[timedelta] = None)
     )
 
 
-def decode_access_token(token: str) -> Optional[str]:
+def decode_access_token(token: str) -> str | None:
     """Return the subject (username) or None if invalid/expired."""
     try:
         payload = jwt.decode(token, get_settings().SECRET_KEY, algorithms=[ALGORITHM])
