@@ -1,5 +1,6 @@
 from datetime import datetime
-from pydantic import BaseModel, EmailStr
+
+from pydantic import BaseModel
 
 
 class InterviewCreateIn(BaseModel):
@@ -38,8 +39,3 @@ class InterviewResultOut(BaseModel):
     completed_at: datetime
 
     model_config = {"from_attributes": True}
-
-
-class JobMatchIn(BaseModel):
-    job_description: str
-    n_results: int = 5

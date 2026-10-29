@@ -2,7 +2,6 @@
 Phase 3 specific tests:
 - Prompt loader
 - AI call DB persistence
-- Matching re-rank fallback
 - Admin stats endpoint
 """
 import pytest
@@ -39,12 +38,6 @@ class TestPromptLoader:
                              qa_summary="Q1: What is Python?\nA: A language.")
         assert "Alice" in result
         assert "Engineer" in result
-
-    def test_load_rerank_prompt(self):
-        result = load_prompt("match_rerank_v1.txt",
-                             job_description="Python backend",
-                             candidates_summary="Candidate ID: abc\nName: Alice")
-        assert "Alice" in result
 
     def test_missing_prompt_raises(self):
         with pytest.raises(FileNotFoundError):
@@ -129,24 +122,11 @@ class TestAdminEndpoint:
         assert stats[0]["service"] == "cv_extraction"
 
 
-class TestMatchingRerank:
-    def test_rerank_fallback_on_groq_failure(self, client, auth_headers):
-        """If Groq re-ranking fails, should fall back to vector scores gracefully."""
-        with patch("app.repositories.candidate_repo.get_candidates_collection") as mock_col:
-            mock_col.return_value.count.return_value = 0
-            resp = client.post(
-                "/api/jobs/match",
-                headers=auth_headers,
-                json={"job_description": "Python backend engineer", "n_results": 5},
-            )
-        # Empty store = empty result, no error
-        assert resp.status_code == 200
-        assert resp.json() == []
-
+class TestCVExtractionLogging:
     def test_cv_extraction_persists_ai_call(self, client, auth_headers):
         """Uploading a CV should create an ai_calls record."""
         mock_resp = MagicMock()
-        mock_resp.choices[0].message.content = "Full Name: Alice\nEmail: alice@test.com"
+        mock_resp.choices[0].message.content = '{"full_name": "Alice", "email": "alice@test.com", "skills": ["Python"]}'
         mock_resp.usage.prompt_tokens = 300
         mock_resp.usage.completion_tokens = 100
 

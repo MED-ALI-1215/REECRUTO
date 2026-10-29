@@ -1,159 +1,276 @@
 """
-Local scoring engine — zero API calls.
+Evidence-based scoring — zero API calls.
 
-Combines three signals into a final match score:
-  - ChromaDB vector similarity score  (weight: 0.40)
-  - Skills keyword overlap             (weight: 0.40)
-  - Certification bonus                (weight: 0.20)
+For every skill the job asks for, look for proof in the candidate's profile:
+
+    listed in "skills" only ........ 0.4
+    used in a project .............. 0.8
+    used in professional experience  1.0
+    covered by a certification ..... +0.2 (capped at 1.0)
+
+    score = 0.70 × required coverage + 0.20 × nice-to-have coverage + 0.10 × soft skills
+
+Categories the job doesn't mention are dropped and the weights re-normalised
+(no nice-to-have → 0.90 / 0.10). Each skill keeps the list of sources that
+proved it, so the recruiter sees *why* a candidate got their score.
+
+When a job skill has no exact match, semantically similar skills found by
+ChromaDB ("torch" for "pytorch") can prove it, at SEMANTIC_MATCH_FACTOR of the
+evidence (a similar skill is weaker proof than the exact one).
 """
-import re
-from dataclasses import dataclass
 
+from dataclasses import asdict, dataclass, field
 
-W_VECTOR = 0.40
-W_SKILLS = 0.40
-W_CERTS  = 0.20
+from app.services.skills import expand, normalize_list, skill_in_set, skill_in_text
 
-# ── Curated skill vocabulary ──────────────────────────────────────────────────
-_SKILL_VOCAB = {
-    # Languages
-    "python","javascript","typescript","java","kotlin","swift","go","golang",
-    "rust","c","c++","c#","php","ruby","scala","r","matlab","bash","shell",
-    "sql","html","css","sass","scss",
-    # Frameworks / libraries
-    "fastapi","django","flask","express","react","vue","angular","nextjs",
-    "nuxt","svelte","spring","rails","laravel","nestjs","graphql","rest",
-    "grpc","celery","pandas","numpy","scikit-learn","sklearn","tensorflow",
-    "pytorch","keras","huggingface","langchain","langraph","langgraph",
-    "llama","openai","streamlit","n8n","spark","kafka","airflow","dbt",
-    # Databases
-    "postgresql","postgres","mysql","sqlite","mongodb","redis","elasticsearch",
-    "cassandra","dynamodb","neo4j","pinecone","chromadb","qdrant","weaviate",
-    "bigquery","snowflake","supabase","airtable","etl",
-    # DevOps / cloud
-    "docker","kubernetes","k8s","terraform","ansible","jenkins","github",
-    "gitlab","git","linux","nginx","apache","prometheus","grafana","datadog",
-    "aws","azure","gcp","ci/cd",
-    # AI / ML concepts
-    "machine learning","deep learning","nlp","llm","rag","embeddings",
-    "vector search","computer vision","data science","mlops","fine-tuning",
-    "transformers","bert","gpt","reinforcement learning","langgraph",
-    "multi-agent","agents","data engineering",
-    # Concepts
-    "api","microservices","rest","websocket","oauth","jwt","devops",
-    "agile","scrum","tdd","testing",
-    # Soft / domain
-    "communication","teamwork","leadership","analytical",
-}
+SCORING_VERSION = "evidence_v2"  # bump when the formula changes: old matches get rescored
 
-_MULTI_WORD_SKILLS = {s for s in _SKILL_VOCAB if " " in s}
-_SINGLE_WORD_SKILLS = {s for s in _SKILL_VOCAB if " " not in s}
-
-_CERT_TRIGGER_WORDS = {
-    "certified","certification","certificate","license","credential",
-    "aws","azure","gcp","pmp","cissp","cpa","cfa","comptia",
-    "kubernetes","ckad","cka","scrum","agile","itil","pmi","ibm",
-}
+WEIGHTS = {"required": 0.70, "nice": 0.20, "soft": 0.10}
+EVIDENCE_LISTED = 0.4
+EVIDENCE_PROJECT = 0.8
+EVIDENCE_EXPERIENCE = 1.0
+CERT_BONUS = 0.2
+DEFAULT_SEMANTIC_FACTOR = 0.8
+STRONG_THRESHOLD = 0.8  # >= this counts as "matched", below as "partial"
 
 
 @dataclass
-class ScoreBreakdown:
+class SkillEvidence:
+    skill: str
+    category: str  # required | nice | soft
+    score: float  # 0..1
+    sources: list[dict] = field(default_factory=list)  # [{"type": ..., "label": ...}]
+
+
+@dataclass
+class MatchScore:
     final_score: float
-    vector_score: float
-    skills_score: float
-    cert_score: float
+    required_score: float | None
+    nice_score: float | None
+    soft_score: float | None
+    skills: list[SkillEvidence]
     matched_skills: list[str]
+    partial_skills: list[str]
     missing_skills: list[str]
     reasoning: str
+    legacy_profile: bool = False
+
+    def breakdown(self) -> list[dict]:
+        return [asdict(s) for s in self.skills]
 
 
-def _extract_skills_from_text(text: str) -> set[str]:
-    """Match text against curated vocab only — no raw word soup."""
-    if not text:
-        return set()
-    text_lower = text.lower()
-    found = set()
-    for skill in _MULTI_WORD_SKILLS:
-        if skill in text_lower:
-            found.add(skill)
-    words = set(re.findall(r"[a-zA-Z][a-zA-Z0-9\+\#\.]*", text_lower))
-    for skill in _SINGLE_WORD_SKILLS:
-        if skill in words:
-            found.add(skill)
-    return found
+@dataclass
+class _Source:
+    label: str
+    skills: set[str]  # normalised + implied skills declared for this item
+    text: str  # free text searched as a fallback
 
 
-def _extract_candidate_skills(skills_text: str) -> set[str]:
-    """
-    Parse candidate skills — works on comma/slash/newline separated lists
-    AND on full structured CV text (scans entire text for vocab terms).
-    """
-    if not skills_text:
-        return set()
-    # Always scan the full text for vocab terms — catches skills embedded
-    # in project descriptions, experience bullets, etc.
-    return _extract_skills_from_text(skills_text)
+@dataclass
+class _CandidateIndex:
+    listed: set[str]
+    experience: list[_Source]
+    projects: list[_Source]
+    certifications: list[_Source]
+    soft: set[str]
+    soft_text: str
 
 
-def _skills_overlap_score(
-    jd_skills: set[str], candidate_skills: set[str]
-) -> tuple[float, list, list]:
-    if not jd_skills:
-        return 50.0, [], []
-    matched = jd_skills & candidate_skills
-    missing = jd_skills - candidate_skills
-    score = min(100.0, (len(matched) / len(jd_skills)) * 100)
-    return round(score, 1), sorted(matched), sorted(missing)
+def _index(profile: dict) -> _CandidateIndex:
+    experience = []
+    for e in profile.get("experience", []):
+        label = " @ ".join(p for p in (e.get("title"), e.get("company")) if p) or "Experience"
+        text = " ".join([e.get("title", ""), *e.get("highlights", [])])
+        experience.append(_Source(label, expand(set(normalize_list(e.get("technologies")))), text))
 
+    projects = []
+    for p in profile.get("projects", []):
+        projects.append(
+            _Source(
+                p.get("name") or "Project",
+                expand(set(normalize_list(p.get("technologies")))),
+                " ".join([p.get("name", ""), p.get("description", "")]),
+            )
+        )
 
-def _certification_score(job_description: str, certifications_text: str) -> float:
-    job_lower = job_description.lower()
-    job_mentions_certs = any(w in job_lower for w in _CERT_TRIGGER_WORDS)
-    if not job_mentions_certs:
-        return 75.0
-    if not certifications_text or not certifications_text.strip():
-        return 50.0
-    cert_tokens = set(re.findall(r"[a-zA-Z][a-zA-Z0-9\+\#\.]*", certifications_text.lower()))
-    return 100.0 if cert_tokens & _CERT_TRIGGER_WORDS else 65.0
+    certifications = []
+    for c in profile.get("certifications", []):
+        name = c.get("name") or "Certification"
+        certifications.append(_Source(name, expand(set(normalize_list(c.get("skills")))), name))
 
-
-def compute_score(
-    *,
-    vector_score: float,
-    job_description: str,
-    skills_text: str,
-    experience_text: str,
-    certifications_text: str,
-) -> ScoreBreakdown:
-    jd_skills = _extract_skills_from_text(job_description)
-
-    # Scan skills_text AND experience_text AND full structured info
-    # — this catches skills buried in project descriptions
-    combined_candidate_text = " ".join(filter(None, [skills_text, experience_text]))
-    candidate_skills = _extract_candidate_skills(combined_candidate_text)
-
-    skills_score, matched, missing = _skills_overlap_score(jd_skills, candidate_skills)
-    cert_score = _certification_score(job_description, certifications_text or "")
-
-    final = round(
-        (vector_score * W_VECTOR) +
-        (skills_score * W_SKILLS) +
-        (cert_score   * W_CERTS),
-        1,
+    highlights = " ".join(h for e in profile.get("experience", []) for h in e.get("highlights", []))
+    return _CandidateIndex(
+        listed=expand(set(normalize_list(profile.get("skills")))),
+        experience=experience,
+        projects=projects,
+        certifications=certifications,
+        soft=set(normalize_list(profile.get("soft_skills"))),
+        soft_text=" ".join([profile.get("summary", ""), highlights]),
     )
 
-    parts = [f"Vector similarity: {vector_score:.0f}/100"]
-    if matched:
-        parts.append(f"Matched skills: {', '.join(list(matched)[:8])}")
-    if missing:
-        parts.append(f"Missing skills: {', '.join(list(missing)[:5])}")
 
-    return ScoreBreakdown(
+def _found_in(skill: str, source: _Source) -> bool:
+    return skill_in_set(skill, source.skills) or skill_in_text(skill, source.text)
+
+
+def _exact_evidence(skill: str, idx: _CandidateIndex) -> tuple[float, list[dict]]:
+    sources: list[dict] = []
+    best = 0.0
+
+    if skill_in_set(skill, idx.listed):
+        best = EVIDENCE_LISTED
+        sources.append({"type": "skills", "label": "Listed in skills"})
+    for src in idx.projects:
+        if _found_in(skill, src):
+            best = max(best, EVIDENCE_PROJECT)
+            sources.append({"type": "project", "label": src.label})
+    for src in idx.experience:
+        if _found_in(skill, src):
+            best = max(best, EVIDENCE_EXPERIENCE)
+            sources.append({"type": "experience", "label": src.label})
+
+    certs = [src for src in idx.certifications if _found_in(skill, src)]
+    for src in certs:
+        sources.append({"type": "certification", "label": src.label})
+    return min(1.0, best + (CERT_BONUS if certs else 0.0)), sources
+
+
+def _technical_evidence(
+    skill: str,
+    category: str,
+    idx: _CandidateIndex,
+    similar: list[tuple[str, float]],
+    semantic_factor: float,
+) -> SkillEvidence:
+    score, sources = _exact_evidence(skill, idx)
+
+    # Semantic fallback: a similar skill (found by ChromaDB) can prove this one,
+    # with a discount. Kept only if it beats the exact evidence.
+    for other, similarity in similar:
+        alt_score, alt_sources = _exact_evidence(other, idx)
+        alt_score = round(alt_score * semantic_factor, 2)
+        if alt_score > score:
+            score = alt_score
+            sources = [{**src, "via": other, "similarity": similarity} for src in alt_sources]
+
+    return SkillEvidence(skill, category, round(score, 2), sources)
+
+
+def _soft_evidence(skill: str, idx: _CandidateIndex) -> SkillEvidence:
+    if skill_in_set(skill, idx.soft):
+        return SkillEvidence(
+            skill, "soft", 1.0, [{"type": "skills", "label": "Listed in soft skills"}]
+        )
+    if skill_in_text(skill, idx.soft_text):
+        return SkillEvidence(
+            skill, "soft", 1.0, [{"type": "experience", "label": "Mentioned in CV"}]
+        )
+    return SkillEvidence(skill, "soft", 0.0, [])
+
+
+def _mean(values: list[float]) -> float | None:
+    return round(100 * sum(values) / len(values), 1) if values else None
+
+
+def compute_match(
+    job_skills: dict,
+    profile: dict | None,
+    similar: dict[str, list[tuple[str, float]]] | None = None,
+    semantic_factor: float = DEFAULT_SEMANTIC_FACTOR,
+) -> MatchScore:
+    """
+    job_skills: {"required": [...], "nice": [...], "soft": [...]} — normalised names.
+    profile:    validated JSON profile from extraction_service.load_profile (None = legacy CV).
+    similar:    job skill -> [(similar CV skill, cosine similarity)] from ChromaDB.
+    """
+    similar = similar or {}
+    required = normalize_list(job_skills.get("required"))
+    nice = [s for s in normalize_list(job_skills.get("nice")) if s not in required]
+    soft = normalize_list(job_skills.get("soft"))
+
+    legacy = profile is None
+    idx = _index(profile or {})
+
+    skills = [
+        _technical_evidence(s, "required", idx, similar.get(s, []), semantic_factor)
+        for s in required
+    ]
+    skills += [
+        _technical_evidence(s, "nice", idx, similar.get(s, []), semantic_factor) for s in nice
+    ]
+    skills += [_soft_evidence(s, idx) for s in soft]
+
+    scores = {
+        "required": _mean([s.score for s in skills if s.category == "required"]),
+        "nice": _mean([s.score for s in skills if s.category == "nice"]),
+        "soft": _mean([s.score for s in skills if s.category == "soft"]),
+    }
+    active = {k: w for k, w in WEIGHTS.items() if scores[k] is not None}
+    total_weight = sum(active.values())
+    final = (
+        round(sum(scores[k] * w for k, w in active.items()) / total_weight, 1)
+        if total_weight
+        else 0.0
+    )
+
+    technical = [s for s in skills if s.category != "soft"]
+    matched = [s.skill for s in technical if s.score >= STRONG_THRESHOLD]
+    partial = [s.skill for s in technical if 0 < s.score < STRONG_THRESHOLD]
+    missing = [s.skill for s in technical if s.score == 0]
+
+    return MatchScore(
         final_score=final,
-        vector_score=vector_score,
-        skills_score=skills_score,
-        cert_score=cert_score,
+        required_score=scores["required"],
+        nice_score=scores["nice"],
+        soft_score=scores["soft"],
+        skills=skills,
         matched_skills=matched,
+        partial_skills=partial,
         missing_skills=missing,
-        reasoning=" | ".join(parts),
+        reasoning=_reasoning(skills, legacy),
+        legacy_profile=legacy,
     )
+
+
+def _reasoning(skills: list[SkillEvidence], legacy: bool) -> str:
+    if legacy:
+        return "This CV was extracted with the old format — re-upload it to score it."
+    req = [s for s in skills if s.category == "required"]
+    parts = []
+    if req:
+        covered = sum(1 for s in req if s.score >= STRONG_THRESHOLD)
+        parts.append(f"{covered}/{len(req)} required skills proven by experience or projects")
+    strong = [s for s in skills if s.category != "soft" and s.score >= STRONG_THRESHOLD]
+    if strong:
+        examples = []
+        for s in strong[:4]:
+            best = next((src for src in s.sources if src["type"] == "experience"), None) or next(
+                (src for src in s.sources if src["type"] == "project"), None
+            )
+            if best:
+                via = f", via {best['via']}" if best.get("via") else ""
+                examples.append(f"{s.skill} ({best['label']}{via})")
+            else:
+                examples.append(s.skill)
+        parts.append("Strong: " + ", ".join(examples))
+    listed_only = [
+        s.skill for s in skills if s.category != "soft" and 0 < s.score < STRONG_THRESHOLD
+    ]
+    if listed_only:
+        parts.append("Partial (listed or certified only): " + ", ".join(listed_only[:5]))
+    missing = [s.skill for s in skills if s.category == "required" and s.score == 0]
+    if missing:
+        parts.append("Missing: " + ", ".join(missing[:5]))
+    return " · ".join(parts) or "No skills to compare."
+
+
+def profile_skill_names(profile: dict | None) -> set[str]:
+    """Every normalised skill name a CV mentions (for the ChromaDB skill vocabulary)."""
+    if not profile:
+        return set()
+    names = list(profile.get("skills", []))
+    for item in profile.get("experience", []) + profile.get("projects", []):
+        names += item.get("technologies", [])
+    for cert in profile.get("certifications", []):
+        names += cert.get("skills", [])
+    return set(normalize_list(names))

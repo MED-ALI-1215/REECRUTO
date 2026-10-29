@@ -7,6 +7,8 @@ os.environ["EMAIL_ADDRESS"] = "test@test.com"
 os.environ["EMAIL_PASSWORD"] = "test-pass"
 os.environ["DATABASE_URL"] = "sqlite:///:memory:"
 os.environ["SECRET_KEY"] = "test-secret-key-that-is-long-enough-for-testing-okay"
+# No embedding model downloads in tests — semantic tests mock ChromaDB explicitly
+os.environ["SEMANTIC_SKILLS_ENABLED"] = "false"
 
 from sqlalchemy import create_engine, StaticPool
 from sqlalchemy.orm import sessionmaker
@@ -17,6 +19,7 @@ from app.db.session import Base, get_db
 import app.models.candidate   # noqa: registers models
 import app.models.interview   # noqa: registers models
 import app.models.ai_call      # noqa: registers models
+import app.models.job          # noqa: registers models
 from app.main import app
 
 # Single shared in-memory engine for the whole test session

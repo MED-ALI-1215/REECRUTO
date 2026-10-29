@@ -2,13 +2,14 @@
 Prompt loader — reads versioned prompt templates from the prompts/ directory.
 Services call load_prompt() instead of writing f-strings inline.
 """
+
+from functools import cache
 from pathlib import Path
-from functools import lru_cache
 
 _PROMPTS_DIR = Path(__file__).parent.parent.parent / "prompts"
 
 
-@lru_cache(maxsize=None)
+@cache
 def _read(filename: str) -> str:
     path = _PROMPTS_DIR / filename
     if not path.exists():

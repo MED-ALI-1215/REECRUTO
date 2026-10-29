@@ -2,11 +2,13 @@
 Custom exception hierarchy for REECRUTO.
 All domain errors inherit from AppError so the global handler can catch them cleanly.
 """
-from fastapi import HTTPException, status
+
+from fastapi import HTTPException
 
 
 class AppError(Exception):
     """Base class for all application errors."""
+
     status_code: int = 500
     detail: str = "An unexpected error occurred."
 
@@ -23,9 +25,11 @@ class UnsupportedFileTypeError(AppError):
     status_code = 400
     detail = "Unsupported file type."
 
+
 class FileTooLargeError(AppError):
     status_code = 400
     detail = "File exceeds maximum allowed size."
+
 
 class CVExtractionError(AppError):
     status_code = 422
@@ -36,6 +40,7 @@ class CVExtractionError(AppError):
 class GroqAPIError(AppError):
     status_code = 502
     detail = "AI service is temporarily unavailable. Please try again."
+
 
 class GroqParseError(AppError):
     status_code = 502
@@ -53,9 +58,11 @@ class SessionNotFoundError(AppError):
     status_code = 404
     detail = "Interview session not found."
 
+
 class SessionAlreadyUsedError(AppError):
     status_code = 410
     detail = "This interview link has already been used."
+
 
 class SessionExpiredError(AppError):
     status_code = 410

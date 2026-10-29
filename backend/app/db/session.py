@@ -1,6 +1,7 @@
-from typing import Generator
+from collections.abc import Generator
+
 from sqlalchemy import create_engine
-from sqlalchemy.orm import DeclarativeBase, sessionmaker, Session
+from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 
 class Base(DeclarativeBase):
@@ -10,6 +11,7 @@ class Base(DeclarativeBase):
 def _get_engine():
     """Lazy engine — only created on first call, not at import time."""
     from app.core.config import get_settings
+
     settings = get_settings()
     url = settings.DATABASE_URL
     connect_args = {"check_same_thread": False} if url.startswith("sqlite") else {}
@@ -31,6 +33,7 @@ engine = _LazyEngine()
 
 def _get_session_factory():
     from app.core.config import get_settings
+
     settings = get_settings()
     url = settings.DATABASE_URL
     connect_args = {"check_same_thread": False} if url.startswith("sqlite") else {}

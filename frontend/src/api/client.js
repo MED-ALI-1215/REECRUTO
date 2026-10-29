@@ -34,8 +34,15 @@ export const uploadCandidate = (file) => {
 };
 export const deleteCandidate = (id) => api.delete(`/api/candidates/${id}`);
 
-export const matchCandidates = (job_description, n_results = 5, deep = false) =>
-  api.post("/api/jobs/match", { job_description, n_results, deep });
+// Saved jobs: skills extracted once, every CV scored against them
+export const listJobs = () => api.get("/api/jobs");
+export const createJob = (title, description) => api.post("/api/jobs", { title, description });
+export const getJob = (id) => api.get(`/api/jobs/${id}`);
+export const updateJob = (id, data) => api.patch(`/api/jobs/${id}`, data);
+export const deleteJob = (id) => api.delete(`/api/jobs/${id}`);
+// rescoreAll=false scores only the CVs uploaded since the last search
+export const runJobMatch = (id, rescoreAll = false) =>
+  api.post(`/api/jobs/${id}/match`, null, { params: { rescore_all: rescoreAll } });
 
 export const createInterview = (data) => api.post("/api/interviews", data);
 export const getSession = (token) => api.get(`/api/interviews/${token}`);

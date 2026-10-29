@@ -13,6 +13,7 @@ from app.db.session import Base
 import app.models.candidate    # noqa
 import app.models.interview    # noqa
 import app.models.ai_call      # noqa
+import app.models.job          # noqa
 
 config = context.config
 

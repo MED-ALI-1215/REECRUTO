@@ -1,14 +1,12 @@
+import secrets
+
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel
 
-from app.core.security import create_access_token
 from app.core.config import get_settings
+from app.core.security import create_access_token
 
 router = APIRouter(prefix="/auth", tags=["auth"])
-
-# ── Temporary hardcoded credentials — replace with DB users in Phase 2 ────────
-_RECRUITER_USERNAME = "admin"
-_RECRUITER_PASSWORD = "admin"   # override in .env via env var later
 
 
 class LoginIn(BaseModel):
@@ -21,12 +19,19 @@ class TokenOut(BaseModel):
     token_type: str = "bearer"
 
 
+def _check_credentials(username: str, password: str) -> bool:
+    """Constant-time comparison so response timing doesn't leak the credentials."""
+    settings = get_settings()
+    user_ok = secrets.compare_digest(username.encode(), settings.RECRUITER_USERNAME.encode())
+    pass_ok = secrets.compare_digest(password.encode(), settings.RECRUITER_PASSWORD.encode())
+    return user_ok and pass_ok
+
+
 @router.post("/login", response_model=TokenOut)
 def login(body: LoginIn):
-    if body.username != _RECRUITER_USERNAME or body.password != _RECRUITER_PASSWORD:
+    if not _check_credentials(body.username, body.password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid credentials",
         )
-    token = create_access_token(subject=body.username)
-    return TokenOut(access_token=token)
+    return TokenOut(access_token=create_access_token(subject=body.username))

@@ -36,14 +36,18 @@ def send_email(recipient_email: str, subject: str, html_body: str) -> None:
             logger.info("Email sent to=%s subject=%r", recipient_email, subject)
             return
         except smtplib.SMTPAuthenticationError as e:
-            raise EmailDeliveryError("SMTP authentication failed — check EMAIL_ADDRESS and EMAIL_PASSWORD") from e
+            raise EmailDeliveryError(
+                "SMTP authentication failed — check EMAIL_ADDRESS and EMAIL_PASSWORD"
+            ) from e
         except Exception as e:
             last_error = str(e)
             continue
     raise EmailDeliveryError(f"All SMTP attempts failed. Last error: {last_error}")
 
 
-def generate_invite_email(candidate_name: str, job_title: str, interview_link: str) -> tuple[str, str]:
+def generate_invite_email(
+    candidate_name: str, job_title: str, interview_link: str
+) -> tuple[str, str]:
     deadline = (datetime.now() + timedelta(days=3)).strftime("%B %d, %Y")
     subject = f"Interview Invitation — {job_title} | REECRUTO"
     body = f"""

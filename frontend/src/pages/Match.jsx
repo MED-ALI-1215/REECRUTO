@@ -1,200 +1,138 @@
-import { useState } from "react";
-import { Search, Send, ChevronDown, ChevronUp, Zap } from "lucide-react";
-import { matchCandidates, createInterview } from "../api/client";
+import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { Plus, X, Users, Sparkles } from "lucide-react";
+import { listJobs, createJob } from "../api/client";
+import { Chip, Toast } from "../components/ui";
+import { errorMessage, scoreColor, useToast } from "../lib/ui";
 
-function ScoreBar({ value, color }) {
+function NewJobForm({ onCancel, onCreated, showToast }) {
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const submit = async () => {
+    setSaving(true);
+    try {
+      const { data } = await createJob(title.trim(), description);
+      onCreated(data);
+    } catch (err) {
+      showToast(errorMessage(err, "Could not create the job."), "err");
+      setSaving(false);
+    }
+  };
+
   return (
-    <div style={{ background: "var(--surface2)", borderRadius: 4, height: 5, overflow: "hidden", flex: 1 }}>
-      <div style={{ width: `${value}%`, height: "100%", background: color, borderRadius: 4, transition: "width 0.6s ease" }} />
+    <div className="card fade-in" style={{ marginBottom: 24 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+        <h3 style={{ fontSize: 17 }}>New job</h3>
+        <button className="btn-ghost" onClick={onCancel} disabled={saving} aria-label="Cancel"
+          style={{ padding: 6, display: "flex" }}>
+          <X size={16} />
+        </button>
+      </div>
+      <input className="input" placeholder="Job title (optional — extracted from the description)"
+        value={title} onChange={e => setTitle(e.target.value)} style={{ marginBottom: 12 }} />
+      <textarea className="input" placeholder="Paste the full job description here…"
+        value={description} onChange={e => setDescription(e.target.value)}
+        rows={8} style={{ resize: "vertical", marginBottom: 14 }} />
+      <button className="btn-primary" onClick={submit}
+        disabled={saving || description.trim().length < 20}
+        style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        {saving ? <span className="spinner" style={{ width: 16, height: 16 }} /> : <Sparkles size={15} />}
+        {saving ? "Extracting skills & scoring CVs…" : "Save & find candidates"}
+      </button>
     </div>
   );
 }
 
-function ScoreColor(score) {
-  return score >= 70 ? "var(--green)" : score >= 45 ? "var(--gold)" : "var(--red)";
+function JobCard({ job, onOpen }) {
+  return (
+    <button onClick={onOpen} className="card" style={{
+      textAlign: "left", color: "inherit", display: "flex", flexDirection: "column", gap: 12,
+      cursor: "pointer", border: "1px solid var(--border)", transition: "border-color 0.2s",
+    }}
+      onMouseEnter={e => (e.currentTarget.style.borderColor = "var(--border2)")}
+      onMouseLeave={e => (e.currentTarget.style.borderColor = "var(--border)")}>
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+        <h3 style={{ fontSize: 16, lineHeight: 1.3 }}>{job.title}</h3>
+        {job.best_score != null && (
+          <span style={{ fontFamily: "Syne, sans-serif", fontWeight: 800, fontSize: 18, color: scoreColor(job.best_score), flexShrink: 0 }}
+            title="Best candidate score">
+            {job.best_score.toFixed(0)}%
+          </span>
+        )}
+      </div>
+      <p style={{ fontSize: 13, color: "var(--text-dim)", display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
+        {job.description_preview}
+      </p>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+        {job.required_skills.slice(0, 6).map(s => <Chip key={s}>{s}</Chip>)}
+        {job.required_skills.length > 6 && <Chip>+{job.required_skills.length - 6}</Chip>}
+      </div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 12, color: "var(--text-dim)", marginTop: "auto" }}>
+        <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <Users size={13} /> {job.candidates_count} candidate{job.candidates_count !== 1 ? "s" : ""}
+        </span>
+        {job.pending_count > 0
+          ? <span style={{ color: "var(--gold)" }}>{job.pending_count} new CV{job.pending_count !== 1 ? "s" : ""}</span>
+          : <span>{new Date(job.created_at).toLocaleDateString()}</span>}
+      </div>
+    </button>
+  );
 }
 
 export default function MatchPage() {
-  const [jd, setJd] = useState("");
-  const [jobTitle, setJobTitle] = useState("");
-  const [results, setResults] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [expanded, setExpanded] = useState(null);
-  const [inviting, setInviting] = useState(null);
-  const [toast, setToast] = useState(null);
+  const navigate = useNavigate();
+  const [jobs, setJobs] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [creating, setCreating] = useState(false);
+  const [toast, showToast] = useToast();
 
-  const showToast = (msg, type = "ok") => {
-    setToast({ msg, type });
-    setTimeout(() => setToast(null), 3500);
-  };
-
-  const search = async () => {
-    if (!jd.trim()) return;
-    setLoading(true); setResults([]);
-    try {
-      const { data } = await matchCandidates(jd, 5, false);
-      setResults(data);
-    } catch (err) {
-      showToast(err.response?.data?.detail || "Matching failed.", "err");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const invite = async (c) => {
-    if (!jobTitle.trim()) { showToast("Enter a job title first.", "err"); return; }
-    setInviting(c.id);
-    try {
-      await createInterview({
-        candidate_name: c.name,
-        candidate_email: c.email || "",
-        job_title: jobTitle,
-        job_description: jd,
-      });
-      showToast(`Interview invite sent to ${c.name}.`);
-    } catch (err) {
-      showToast(err.response?.data?.detail || "Failed to send invite.", "err");
-    } finally {
-      setInviting(null);
-    }
-  };
+  useEffect(() => {
+    listJobs()
+      .then(({ data }) => setJobs(data))
+      .catch(err => showToast(errorMessage(err, "Could not load jobs."), "err"))
+      .finally(() => setLoading(false));
+  }, [showToast]);
 
   return (
     <div className="fade-in">
-      <h1 style={{ fontSize: 26, marginBottom: 4 }}>Job Matcher</h1>
-      <p style={{ color: "var(--text-dim)", marginBottom: 28 }}>
-        Paste a job description to find the best matching candidates.
-      </p>
-
-      {/* Input section */}
-      <div className="card" style={{ marginBottom: 24 }}>
-        <div style={{ display: "flex", gap: 12, marginBottom: 12 }}>
-          <input className="input" placeholder="Job title (e.g. Backend Engineer)"
-            value={jobTitle} onChange={e => setJobTitle(e.target.value)}
-            style={{ flex: "0 0 260px" }} />
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, marginBottom: 28, flexWrap: "wrap" }}>
+        <div>
+          <h1 style={{ fontSize: 26, marginBottom: 4 }}>Job Matcher</h1>
+          <p style={{ color: "var(--text-dim)" }}>Saved job descriptions and their best candidates.</p>
         </div>
-        <textarea className="input" placeholder="Paste the full job description here…"
-          value={jd} onChange={e => setJd(e.target.value)}
-          rows={5} style={{ resize: "vertical", marginBottom: 14 }} />
-        <button className="btn-primary" onClick={search} disabled={loading || !jd.trim()}
-          style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          {loading ? <span className="spinner" style={{ width: 16, height: 16 }} /> : <Search size={15} />}
-          {loading ? "Matching…" : "Find Candidates"}
-        </button>
+        {!creating && (
+          <button className="btn-primary" onClick={() => setCreating(true)}
+            style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <Plus size={16} /> New job
+          </button>
+        )}
       </div>
 
-      {/* Results */}
-      {results.length === 0 && !loading && (
-        <p style={{ color: "var(--text-dim)", textAlign: "center", padding: "24px 0" }}>
-          {jd ? "No matching candidates found." : "Enter a job description to begin."}
+      {creating && (
+        <NewJobForm
+          showToast={showToast}
+          onCancel={() => setCreating(false)}
+          onCreated={job => navigate(`/match/${job.id}`)}
+        />
+      )}
+
+      {loading ? (
+        <div style={{ display: "flex", justifyContent: "center", paddingTop: 60 }}>
+          <span className="spinner" style={{ width: 32, height: 32 }} />
+        </div>
+      ) : jobs.length === 0 && !creating ? (
+        <p style={{ color: "var(--text-dim)", textAlign: "center", padding: "48px 0" }}>
+          No saved jobs yet — click “New job” to add one.
         </p>
-      )}
-
-      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-        {results.map((c, i) => (
-          <div key={c.id} className="card" style={{ padding: 0, overflow: "hidden" }}>
-            {/* Header row */}
-            <div style={{ display: "flex", alignItems: "center", gap: 16, padding: "18px 20px", cursor: "pointer" }}
-              onClick={() => setExpanded(expanded === c.id ? null : c.id)}>
-              {/* Rank */}
-              <span style={{
-                width: 28, height: 28, borderRadius: "50%", background: i === 0 ? "var(--gold)" : "var(--surface2)",
-                color: i === 0 ? "#0a0d13" : "var(--text-mid)",
-                display: "flex", alignItems: "center", justifyContent: "center",
-                fontFamily: "Syne, sans-serif", fontWeight: 700, fontSize: 13, flexShrink: 0,
-              }}>{i + 1}</span>
-
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <p style={{ fontWeight: 600 }}>{c.name}</p>
-                <p style={{ color: "var(--text-dim)", fontSize: 13 }}>{c.email || "No email"}</p>
-              </div>
-
-              {/* Score */}
-              <div style={{ textAlign: "right", flexShrink: 0 }}>
-                <p style={{ fontFamily: "Syne, sans-serif", fontWeight: 800, fontSize: 22,
-                  color: ScoreColor(c.match_score) }}>
-                  {c.match_score?.toFixed(0)}<span style={{ fontSize: 14, fontWeight: 400 }}>%</span>
-                </p>
-                <p style={{ fontSize: 11, color: "var(--text-dim)" }}>match</p>
-              </div>
-
-              {expanded === c.id ? <ChevronUp size={16} color="var(--text-dim)" /> : <ChevronDown size={16} color="var(--text-dim)" />}
-            </div>
-
-            {/* Expanded detail */}
-            {expanded === c.id && (
-              <div style={{ padding: "0 20px 20px", borderTop: "1px solid var(--border)" }}>
-                {/* Score breakdown */}
-                <div style={{ display: "flex", flexDirection: "column", gap: 8, margin: "16px 0" }}>
-                  {[
-                    { label: "Skills match", value: c.skills_score, color: "var(--blue)" },
-                    { label: "Vector similarity", value: c.vector_score, color: "var(--gold)" },
-                    { label: "Certifications", value: c.cert_score, color: "var(--green)" },
-                  ].map(({ label, value, color }) => (
-                    <div key={label} style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                      <span style={{ fontSize: 12, color: "var(--text-dim)", width: 120, flexShrink: 0 }}>{label}</span>
-                      <ScoreBar value={value} color={color} />
-                      <span style={{ fontSize: 12, color, fontWeight: 600, width: 36, textAlign: "right" }}>
-                        {value?.toFixed(0)}%
-                      </span>
-                    </div>
-                  ))}
-                </div>
-
-                {/* Matched / missing skills */}
-                {c.matched_skills?.length > 0 && (
-                  <div style={{ marginBottom: 10 }}>
-                    <p style={{ fontSize: 12, color: "var(--text-dim)", marginBottom: 6 }}>Matched skills</p>
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                      {c.matched_skills.map(s => (
-                        <span key={s} className="badge" style={{ background: "#22c55e15", color: "var(--green)", border: "1px solid #22c55e30" }}>{s}</span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {c.missing_skills?.length > 0 && (
-                  <div style={{ marginBottom: 14 }}>
-                    <p style={{ fontSize: 12, color: "var(--text-dim)", marginBottom: 6 }}>Missing skills</p>
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                      {c.missing_skills.map(s => (
-                        <span key={s} className="badge" style={{ background: "#ef444415", color: "var(--red)", border: "1px solid #ef444430" }}>{s}</span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {c.reasoning && (
-                  <p style={{ fontSize: 13, color: "var(--text-mid)", background: "var(--surface2)",
-                    padding: "10px 14px", borderRadius: "var(--radius)", marginBottom: 14,
-                    borderLeft: "3px solid var(--border2)" }}>
-                    {c.reasoning}
-                  </p>
-                )}
-
-                <button className="btn-primary" onClick={() => invite(c)}
-                  disabled={inviting === c.id || !c.email}
-                  style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  {inviting === c.id ? <span className="spinner" style={{ width: 14, height: 14 }} /> : <Send size={14} />}
-                  {c.email ? "Send Interview Invite" : "No email on file"}
-                </button>
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
-
-      {toast && (
-        <div style={{
-          position: "fixed", bottom: 24, right: 24,
-          background: toast.type === "err" ? "#ef444418" : "#22c55e18",
-          border: `1px solid ${toast.type === "err" ? "var(--red)" : "var(--green)"}`,
-          color: toast.type === "err" ? "var(--red)" : "var(--green)",
-          padding: "12px 18px", borderRadius: "var(--radius)",
-          display: "flex", alignItems: "center", gap: 8, fontSize: 14, fontWeight: 500,
-        }}>
-          {toast.msg}
+      ) : (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 16 }}>
+          {jobs.map(job => <JobCard key={job.id} job={job} onOpen={() => navigate(`/match/${job.id}`)} />)}
         </div>
       )}
+
+      <Toast toast={toast} />
     </div>
   );
 }

@@ -1,5 +1,4 @@
 import chromadb
-from chromadb.config import Settings as ChromaSettings
 
 from app.core.config import get_settings
 from app.core.logging import get_logger
@@ -22,7 +21,9 @@ def get_chroma_client() -> chromadb.ClientAPI:
     settings = get_settings()
 
     if settings.CHROMA_USE_SERVER:
-        logger.info("ChromaDB: connecting to server at %s:%s", settings.CHROMA_HOST, settings.CHROMA_PORT)
+        logger.info(
+            "ChromaDB: connecting to server at %s:%s", settings.CHROMA_HOST, settings.CHROMA_PORT
+        )
         _client = chromadb.HttpClient(
             host=settings.CHROMA_HOST,
             port=settings.CHROMA_PORT,
@@ -39,4 +40,13 @@ def get_candidates_collection() -> chromadb.Collection:
     return client.get_or_create_collection(
         name="candidates",
         metadata={"description": "CV candidates for job matching"},
+    )
+
+
+def get_skills_collection() -> chromadb.Collection:
+    """Vocabulary of skill names seen in CVs, embedded for semantic skill matching."""
+    client = get_chroma_client()
+    return client.get_or_create_collection(
+        name="skills",
+        metadata={"description": "Normalised skill names", "hnsw:space": "cosine"},
     )
