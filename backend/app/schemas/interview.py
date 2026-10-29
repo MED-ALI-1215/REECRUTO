@@ -38,8 +38,3 @@ class InterviewResultOut(BaseModel):
     completed_at: datetime
 
     model_config = {"from_attributes": True}
-
-
-class JobMatchIn(BaseModel):
-    job_description: str
-    n_results: int = 5

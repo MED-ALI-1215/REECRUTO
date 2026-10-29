@@ -1,0 +1,19 @@
+Analyse the job description below and return a JSON object with exactly these keys:
+
+{{
+  "title": "short job title",
+  "required_skills": ["technical skills the candidate MUST have"],
+  "nice_to_have_skills": ["technical skills that are a plus / preferred / bonus"],
+  "soft_skills": ["soft skills asked for (communication, teamwork, ...)"]
+}}
+
+Rules:
+- One skill per item, short canonical names: "Retrieval-Augmented Generation (RAG)" -> "RAG", "Postgres" -> "PostgreSQL", "K8s" -> "Kubernetes".
+- Split vague groups into concrete skills ("cloud (AWS or GCP)" -> "AWS", "GCP"). Keep at most 20 required skills.
+- A skill appears in only one list. When the text does not say whether a skill is optional, put it in "required_skills".
+- Do not include years of experience, degrees or spoken languages in the skill lists.
+
+Job title (may be empty): {job_title}
+
+Job description:
+{job_description}

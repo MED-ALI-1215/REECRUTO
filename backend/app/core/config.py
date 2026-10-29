@@ -23,6 +23,18 @@ class Settings(BaseSettings):
     SECRET_KEY: str = "change-me-before-production"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 8    # 8 hours
 
+    # ── Matching (ChromaDB) ───────────────────────────────────────────────────
+    # Stage 1 "retrieve": when there are at least MATCH_PREFILTER_MIN_CVS CVs,
+    # ChromaDB pre-selects the MATCH_RETRIEVE_TOP_K CVs closest to the job and
+    # only those are scored in detail (stage 2 "rank", evidence-based).
+    MATCH_RETRIEVE_TOP_K: int = 100
+    MATCH_PREFILTER_MIN_CVS: int = 500
+    # Semantic skill matching: "Torch" ~ "PyTorch". Similar skills count for
+    # SEMANTIC_MATCH_FACTOR of an exact match, above SKILL_SIMILARITY_THRESHOLD.
+    SEMANTIC_SKILLS_ENABLED: bool = True
+    SKILL_SIMILARITY_THRESHOLD: float = 0.80
+    SEMANTIC_MATCH_FACTOR: float = 0.8
+
     # ── File upload limits ────────────────────────────────────────────────────
     MAX_UPLOAD_SIZE_MB: int = 10
     ALLOWED_EXTENSIONS: list[str] = ["pdf", "docx", "doc", "txt", "png", "jpg", "jpeg"]

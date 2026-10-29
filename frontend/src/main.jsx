@@ -6,6 +6,7 @@ import "./index.css";
 import Login      from "./pages/Login";
 import Upload     from "./pages/Upload";
 import Match      from "./pages/Match";
+import JobDetail  from "./pages/JobDetail";
 import Dashboard  from "./pages/Dashboard";
 import Interview  from "./pages/Interview";
 import Layout     from "./components/Layout";
@@ -27,6 +28,7 @@ createRoot(document.getElementById("root")).render(
           <Route index element={<Navigate to="/upload" replace />} />
           <Route path="upload"    element={<Upload />} />
           <Route path="match"     element={<Match />} />
+          <Route path="match/:jobId" element={<JobDetail />} />
           <Route path="dashboard" element={<Dashboard />} />
         </Route>
 

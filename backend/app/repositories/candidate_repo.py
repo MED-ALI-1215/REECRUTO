@@ -47,6 +47,9 @@ def delete_candidate(db: Session, candidate_id: str) -> bool:
     candidate = db.get(Candidate, candidate_id)
     if not candidate:
         return False
+    from app.repositories.job_repo import delete_matches_for_candidate
+
+    delete_matches_for_candidate(db, candidate_id)
     db.delete(candidate)
     db.commit()
     return True

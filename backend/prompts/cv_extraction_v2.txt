@@ -1,0 +1,28 @@
+Extract the information from the CV below. Return a JSON object with exactly these keys:
+
+{{
+  "full_name": "string or null",
+  "email": "string or null",
+  "phone": "string or null",
+  "summary": "one or two sentences",
+  "skills": ["one technical skill per item"],
+  "soft_skills": ["one soft skill per item"],
+  "experience": [
+    {{"title": "...", "company": "...", "duration": "...", "technologies": ["..."], "highlights": ["..."]}}
+  ],
+  "projects": [
+    {{"name": "...", "technologies": ["..."], "description": "..."}}
+  ],
+  "education": [{{"degree": "...", "institution": "...", "years": "..."}}],
+  "certifications": [{{"name": "...", "issuer": "...", "skills": ["skills this certification covers"]}}],
+  "languages": ["..."]
+}}
+
+Rules:
+- Skill names are short and canonical: "Retrieval-Augmented Generation (RAG)" -> "RAG", "Postgres" -> "PostgreSQL", "K8s" -> "Kubernetes".
+- "skills" also includes technical skills that only appear in experience or projects.
+- "technologies" lists the tools, languages and frameworks actually used in that job or project.
+- "certifications[].skills" lists the technical skills the certification proves (for example a data science certificate covers Python, Machine Learning, SQL).
+
+CV Text:
+{cv_text}

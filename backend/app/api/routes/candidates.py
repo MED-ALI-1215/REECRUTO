@@ -15,8 +15,10 @@ logger = get_logger(__name__)
 router = APIRouter(prefix="/candidates", tags=["candidates"])
 
 
+# Plain `def` (not async): the AI extraction is blocking, so FastAPI runs this in a
+# worker thread instead of freezing the whole server during the Groq call.
 @router.post("", response_model=CandidateOut, status_code=status.HTTP_201_CREATED)
-async def upload_candidate(
+def upload_candidate(
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
     _: str = Depends(require_auth),
@@ -26,7 +28,7 @@ async def upload_candidate(
     if ext not in settings.ALLOWED_EXTENSIONS:
         raise UnsupportedFileTypeError(f"File type .{ext} is not allowed.")
 
-    data = await file.read()
+    data = file.file.read()
     if len(data) > settings.max_upload_bytes:
         raise FileTooLargeError(f"File exceeds {settings.MAX_UPLOAD_SIZE_MB}MB limit.")
 
@@ -34,7 +36,7 @@ async def upload_candidate(
     cv_text = cv_service.extract_text(file.filename, data)
     structured_info = cv_service.extract_cv_info_with_ai(cv_text, db=db)
 
-    # Parse structured info into semantic fields (no extra API call)
+    # Validate the JSON profile and derive compact fields (no extra API call)
     parsed = parse_structured_info(structured_info)
 
     name = cv_service.extract_name_from_structured(structured_info) or file.filename

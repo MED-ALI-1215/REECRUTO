@@ -40,7 +40,7 @@ class TestCandidates:
 
     def test_upload_candidate(self, client, auth_headers):
         mock_resp = MagicMock()
-        mock_resp.choices[0].message.content = "Full Name: Alice Smith\nEmail: alice@example.com"
+        mock_resp.choices[0].message.content = '{"full_name": "Alice Smith", "email": "alice@example.com", "skills": ["Python"]}'
         mock_resp.usage.prompt_tokens = 100
 
         with patch("groq.Groq") as MockGroq, \
@@ -79,23 +79,6 @@ class TestCandidates:
     def test_delete_nonexistent_candidate(self, client, auth_headers):
         resp = client.delete("/api/candidates/does-not-exist", headers=auth_headers)
         assert resp.status_code == 404
-
-
-class TestJobs:
-    def test_match_empty_store(self, client, auth_headers):
-        with patch("app.repositories.candidate_repo.get_candidates_collection") as mock_col:
-            mock_col.return_value.count.return_value = 0
-            resp = client.post(
-                "/api/jobs/match",
-                headers=auth_headers,
-                json={"job_description": "Python backend engineer", "n_results": 5},
-            )
-        assert resp.status_code == 200
-        assert resp.json() == []
-
-    def test_match_requires_auth(self, client):
-        resp = client.post("/api/jobs/match", json={"job_description": "Python dev"})
-        assert resp.status_code == 401
 
 
 class TestInterviews:

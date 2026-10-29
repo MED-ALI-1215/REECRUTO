@@ -40,3 +40,12 @@ def get_candidates_collection() -> chromadb.Collection:
         name="candidates",
         metadata={"description": "CV candidates for job matching"},
     )
+
+
+def get_skills_collection() -> chromadb.Collection:
+    """Vocabulary of skill names seen in CVs, embedded for semantic skill matching."""
+    client = get_chroma_client()
+    return client.get_or_create_collection(
+        name="skills",
+        metadata={"description": "Normalised skill names", "hnsw:space": "cosine"},
+    )

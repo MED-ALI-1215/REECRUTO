@@ -49,14 +49,14 @@ class TestHelpers:
 class TestAIExtraction:
     def test_groq_success(self):
         mock_response = MagicMock()
-        mock_response.choices[0].message.content = "Full Name: Alice\nEmail: alice@example.com"
+        mock_response.choices[0].message.content = '{"full_name": "Alice", "email": "alice@example.com"}'
         mock_response.usage.prompt_tokens = 100
 
         with patch("groq.Groq") as MockGroq:
             MockGroq.return_value.chat.completions.create.return_value = mock_response
             result = cv_service.extract_cv_info_with_ai("Alice Smith CV text here")
 
-        assert "Full Name: Alice" in result
+        assert '"full_name": "Alice"' in result
 
     def test_groq_failure_raises_groq_api_error(self):
         with patch("groq.Groq") as MockGroq:
