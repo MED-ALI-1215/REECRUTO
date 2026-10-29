@@ -32,6 +32,8 @@ class Job(Base):
     required_skills_json: Mapped[str] = mapped_column(Text, default="[]")
     nice_skills_json: Mapped[str] = mapped_column(Text, default="[]")
     soft_skills_json: Mapped[str] = mapped_column(Text, default="[]")
+    # Interview questions generated once for the job and shared by every candidate
+    interview_questions_json: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)

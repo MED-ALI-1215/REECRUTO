@@ -14,6 +14,7 @@ import app.models.candidate    # noqa
 import app.models.interview    # noqa
 import app.models.ai_call      # noqa
 import app.models.job          # noqa
+import app.models.security_event  # noqa
 
 config = context.config
 

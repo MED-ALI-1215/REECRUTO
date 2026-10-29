@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Upload as UploadIcon, Trash2, FileText, CheckCircle, AlertCircle, ChevronDown, ChevronUp } from "lucide-react";
 import { getCandidates, uploadCandidate, deleteCandidate } from "../api/client";
+import { SecurityBadge } from "../components/ui";
 
 export default function UploadPage() {
   const [candidates, setCandidates] = useState([]);
@@ -111,6 +112,7 @@ export default function UploadPage() {
                   {c.email || "No email"} · {c.file_name}
                 </p>
               </div>
+              {c.flagged && <SecurityBadge reasons={c.flag_reasons} />}
               <p style={{ color: "var(--text-dim)", fontSize: 12, flexShrink: 0 }}>
                 {new Date(c.uploaded_at).toLocaleDateString()}
               </p>

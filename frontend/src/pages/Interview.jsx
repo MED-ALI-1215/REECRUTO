@@ -36,35 +36,60 @@ function ScoreDisplay({ score, feedback, keywords }) {
 
 const STATES = { loading: "loading", ready: "ready", answering: "answering", scoring: "scoring", done: "done", error: "error" };
 
+const MAX_ANSWER_CHARS = 4000;
+
 export default function Interview() {
   const [params] = useSearchParams();
   const token = params.get("token");
 
-  const [state, setState] = useState(STATES.loading);
+  const [state, setState] = useState(token ? STATES.loading : STATES.error);
   const [session, setSession] = useState(null);
   const [questions, setQuestions] = useState([]);
+  const [kinds, setKinds] = useState([]);
+  const [progress, setProgress] = useState([]); // server-side: null | {score, feedback, keywords}
   const [current, setCurrent] = useState(0);
   const [answer, setAnswer] = useState("");
-  const [scores, setScores] = useState([]);
-  const [answers, setAnswers] = useState([]);
   const [lastScore, setLastScore] = useState(null);
   const [finalResult, setFinalResult] = useState(null);
-  const [errorMsg, setErrorMsg] = useState("");
+  const [errorMsg, setErrorMsg] = useState(token ? "" : "No interview token provided.");
+  const [submitError, setSubmitError] = useState("");
   const [loadingQs, setLoadingQs] = useState(false);
 
   useEffect(() => {
-    if (!token) { setState(STATES.error); setErrorMsg("No interview token provided."); return; }
+    if (!token) return;
     getSession(token)
       .then(({ data }) => { setSession(data); setState(STATES.ready); })
       .catch(err => { setState(STATES.error); setErrorMsg(err.response?.data?.detail || "Invalid or expired link."); });
   }, [token]);
 
+  const firstUnanswered = (list, from = 0) => {
+    for (let i = from; i < list.length; i++) if (list[i] == null) return i;
+    return -1;
+  };
+
+  const finish = async () => {
+    setState(STATES.loading);
+    try {
+      const { data } = await finishInterview(token);
+      setFinalResult(data);
+      setState(STATES.done);
+    } catch (err) {
+      setErrorMsg(err.response?.data?.detail || "Could not save your interview. Please reload the page to retry.");
+      setState(STATES.error);
+    }
+  };
+
   const start = async () => {
     setLoadingQs(true);
     try {
+      // Questions are frozen on the server: a reload resumes where the candidate left off
       const { data } = await getQuestions(token);
       setQuestions(data.questions);
-      setCurrent(0); setScores([]); setAnswers([]); setLastScore(null);
+      setKinds(data.kinds);
+      setProgress(data.progress);
+      const next = firstUnanswered(data.progress);
+      if (next === -1) { await finish(); return; }
+      setCurrent(next); setAnswer(""); setLastScore(null);
       setState(STATES.answering);
     } catch (err) {
       setErrorMsg(err.response?.data?.detail || "Failed to load questions.");
@@ -76,38 +101,35 @@ export default function Interview() {
 
   const submit = async () => {
     if (!answer.trim()) return;
+    setSubmitError("");
     setState(STATES.scoring);
     try {
-      const { data } = await scoreAnswer(token, questions[current], answer);
+      const { data } = await scoreAnswer(token, current, answer);
       setLastScore(data);
-      setScores(s => [...s, data]);
-      setAnswers(a => [...a, answer]);
-    } catch {
-      setLastScore({ score: 0, feedback: "Could not score this answer.", keywords: [] });
-      setScores(s => [...s, { score: 0, feedback: "", keywords: [] }]);
-      setAnswers(a => [...a, answer]);
+      setProgress(p => p.map((x, i) => (i === current ? data : x)));
+    } catch (err) {
+      if (err.response?.status === 409) {
+        // Already answered (e.g. double click): the server keeps the first answer
+        await start();
+        return;
+      }
+      setSubmitError(err.response?.data?.detail || "Could not submit your answer. Please try again.");
+      setState(STATES.answering);
     }
   };
 
   const next = async () => {
-    if (current + 1 < questions.length) {
-      setCurrent(c => c + 1);
+    const nextIndex = firstUnanswered(progress, current + 1);
+    if (nextIndex !== -1) {
+      setCurrent(nextIndex);
       setAnswer(""); setLastScore(null);
       setState(STATES.answering);
     } else {
-      // Finish
-      setState(STATES.loading);
-      try {
-        const { data } = await finishInterview(token, {
-          questions, answers: [...answers], scores: [...scores],
-        });
-        setFinalResult(data);
-        setState(STATES.done);
-      } catch {
-        setState(STATES.done);
-      }
+      await finish();
     }
   };
+
+  const isLast = firstUnanswered(progress, current + 1) === -1;
 
   // ── Error ──
   if (state === STATES.error) return (
@@ -192,15 +214,19 @@ export default function Interview() {
 
         <div className="card fade-in" key={current}>
           <p style={{ fontSize: 12, color: "var(--text-dim)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10 }}>
-            Question {current + 1}
+            Question {current + 1}{kinds[current] === "personal" ? " · About your experience" : ""}
           </p>
           <h2 style={{ fontSize: 19, marginBottom: 20, lineHeight: 1.4 }}>{questions[current]}</h2>
 
           {state === STATES.answering && (
             <>
               <textarea className="input" placeholder="Type your answer here…"
-                value={answer} onChange={e => setAnswer(e.target.value)}
-                rows={5} style={{ resize: "vertical", marginBottom: 14 }} />
+                value={answer} onChange={e => setAnswer(e.target.value)} maxLength={MAX_ANSWER_CHARS}
+                rows={5} style={{ resize: "vertical", marginBottom: 6 }} />
+              <p style={{ fontSize: 12, color: "var(--text-dim)", textAlign: "right", marginBottom: 10 }}>
+                {answer.length} / {MAX_ANSWER_CHARS} · one answer per question
+              </p>
+              {submitError && <p style={{ color: "var(--red)", fontSize: 13, marginBottom: 10 }}>{submitError}</p>}
               <button className="btn-primary" onClick={submit} disabled={!answer.trim()}>
                 Submit Answer
               </button>
@@ -218,7 +244,7 @@ export default function Interview() {
             <>
               <ScoreDisplay {...lastScore} />
               <button className="btn-primary" onClick={next} style={{ marginTop: 16 }}>
-                {current + 1 < questions.length ? "Next Question →" : "Finish Interview"}
+                {isLast ? "Finish Interview" : "Next Question →"}
               </button>
             </>
           )}

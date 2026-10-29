@@ -47,10 +47,10 @@ export const runJobMatch = (id, rescoreAll = false) =>
 export const createInterview = (data) => api.post("/api/interviews", data);
 export const getSession = (token) => api.get(`/api/interviews/${token}`);
 export const getQuestions = (token) => api.post(`/api/interviews/${token}/questions`);
-export const scoreAnswer = (token, question, answer) =>
-  api.post(`/api/interviews/${token}/score`, { question, answer });
-export const finishInterview = (token, payload) =>
-  api.post(`/api/interviews/${token}/finish`, payload);
+// The server stores questions, answers and scores: the browser only sends the answer text
+export const scoreAnswer = (token, questionIndex, answer) =>
+  api.post(`/api/interviews/${token}/score`, { question_index: questionIndex, answer });
+export const finishInterview = (token) => api.post(`/api/interviews/${token}/finish`);
 
 export const getDashboard = () => api.get("/api/dashboard/results");
 export const acceptCandidate = (id) => api.post(`/api/dashboard/results/${id}/accept`);

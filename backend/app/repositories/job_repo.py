@@ -56,8 +56,9 @@ def update_job(
     """Update a job. Changing anything that affects scoring clears its matches."""
     if title is not None:
         job.title = title
-    if description is not None:
+    if description is not None and description != job.description:
         job.description = description
+        job.interview_questions_json = None  # regenerated for the next invite
     if skills is not None:
         job.required_skills_json = json.dumps(skills["required"])
         job.nice_skills_json = json.dumps(skills["nice"])

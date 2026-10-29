@@ -20,6 +20,21 @@ class InterviewSession(Base):
     job_title: Mapped[str] = mapped_column(String(256))
     job_description: Mapped[str] = mapped_column(Text)
     used: Mapped[bool] = mapped_column(Boolean, default=False)
+
+    # Links to the saved job / candidate (null for invites sent without them)
+    job_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("jobs.id", ondelete="SET NULL"), nullable=True
+    )
+    candidate_id: Mapped[str | None] = mapped_column(
+        String(64), ForeignKey("candidates.id", ondelete="SET NULL"), nullable=True
+    )
+
+    # Server-side interview state — never trusted from the browser.
+    # questions_json: [{"text": ..., "kind": "job" | "personal"}], frozen when the interview starts
+    # progress_json:  list aligned with questions: null | {answer, score, feedback, keywords, flagged}
+    questions_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    progress_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
