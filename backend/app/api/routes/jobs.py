@@ -7,7 +7,7 @@ from app.api.dependencies import require_auth
 from app.core.exceptions import AppError
 from app.db.session import get_db
 from app.models.job import Job
-from app.repositories import job_repo
+from app.repositories import job_repo, security_repo
 from app.schemas.job import (
     JobCreateIn,
     JobDetailOut,
@@ -37,7 +37,9 @@ def _get_job_or_404(db: Session, job_id: int) -> Job:
 
 def _detail(db: Session, job: Job) -> JobDetailOut:
     matches = []
-    for match, candidate in job_repo.list_matches(db, job.id):
+    rows = job_repo.list_matches(db, job.id)
+    flags = security_repo.reasons_by_candidate(db, [c.id for _, c in rows])
+    for match, candidate in rows:
         breakdown = json.loads(match.breakdown_json or "[]")
         technical = [b for b in breakdown if b["category"] != "soft"]
         matches.append(
@@ -56,6 +58,7 @@ def _detail(db: Session, job: Job) -> JobDetailOut:
                 breakdown=breakdown,
                 reasoning=match.reasoning,
                 legacy_profile=match.legacy_profile,
+                flagged=candidate.id in flags,
                 matched_at=match.matched_at,
             )
         )
@@ -67,6 +70,7 @@ def _detail(db: Session, job: Job) -> JobDetailOut:
         matches=matches,
         pending_count=job_repo.count_pending(db, job.id, SCORING_VERSION),
         filtered_out_count=job_repo.count_filtered_out(db, job.id, SCORING_VERSION),
+        interview_questions=json.loads(job.interview_questions_json or "[]"),
         created_at=job.created_at,
         updated_at=job.updated_at,
     )

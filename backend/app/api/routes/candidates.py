@@ -6,7 +6,7 @@ from app.core.config import get_settings
 from app.core.exceptions import FileTooLargeError, UnsupportedFileTypeError
 from app.core.logging import get_logger
 from app.db.session import get_db
-from app.repositories import candidate_repo
+from app.repositories import candidate_repo, security_repo
 from app.schemas.candidate import CandidateListOut, CandidateOut
 from app.services import cv_service
 from app.services.extraction_service import parse_structured_info
@@ -60,6 +60,19 @@ def upload_candidate(
     # Embed compact semantic document in ChromaDB (not raw CV text)
     candidate_repo.add_to_vector_store(candidate_id, parsed.chroma_document)
 
+    # Prompt-injection check: the CV is kept but flagged for the recruiter
+    guard, detector = cv_service.check_cv_injection(cv_text, structured_info)
+    if guard.flagged:
+        security_repo.record_event(
+            db,
+            source="cv",
+            detector=detector,
+            reasons=guard.reasons,
+            excerpt=guard.excerpt,
+            candidate_id=candidate_id,
+            candidate_name=name,
+        )
+
     logger.info(
         "Candidate created: id=%s name=%s skills=%d chars chroma_doc=%d chars",
         candidate_id,
@@ -67,13 +80,22 @@ def upload_candidate(
         len(parsed.skills_text),
         len(parsed.chroma_document),
     )
-    return candidate
+    out = CandidateOut.model_validate(candidate)
+    out.flagged, out.flag_reasons = guard.flagged, guard.reasons
+    return out
 
 
 @router.get("", response_model=CandidateListOut)
 def list_candidates(db: Session = Depends(get_db), _: str = Depends(require_auth)):
     candidates = candidate_repo.list_candidates(db)
-    return CandidateListOut(total=len(candidates), candidates=candidates)
+    flags = security_repo.reasons_by_candidate(db, [c.id for c in candidates])
+    items = []
+    for c in candidates:
+        item = CandidateOut.model_validate(c)
+        item.flag_reasons = flags.get(c.id, [])
+        item.flagged = bool(item.flag_reasons)
+        items.append(item)
+    return CandidateListOut(total=len(items), candidates=items)
 
 
 @router.delete("/{candidate_id}", status_code=status.HTTP_204_NO_CONTENT)

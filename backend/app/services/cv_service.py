@@ -19,10 +19,11 @@ from app.core.exceptions import (
 )
 from app.core.logging import get_logger
 from app.core.prompts import load_prompt
+from app.services.injection_guard import GuardResult, detector_name, merge, scan, wrap_untrusted
 
 logger = get_logger(__name__)
 
-PROMPT_VERSION = "cv_extraction_v2"
+PROMPT_VERSION = "cv_extraction_v3"
 # Very long CVs blow the context window and cost tokens for little gain
 MAX_CV_CHARS = 20_000
 
@@ -108,7 +109,9 @@ def extract_cv_info_with_ai(cv_text: str, db=None) -> str:
         service="cv_extraction",
         prompt_version=PROMPT_VERSION,
         system=load_prompt(f"{PROMPT_VERSION}_system.txt"),
-        user=load_prompt(f"{PROMPT_VERSION}.txt", cv_text=cv_text[:MAX_CV_CHARS]),
+        user=load_prompt(
+            f"{PROMPT_VERSION}.txt", cv_block=wrap_untrusted(cv_text[:MAX_CV_CHARS], "cv")
+        ),
         temperature=0.1,
         max_tokens=6000,  # gpt-oss models spend part of the budget on reasoning
         db=db,
@@ -164,3 +167,18 @@ def extract_email_from_structured(structured_info: str) -> str | None:
 
 def generate_candidate_id() -> str:
     return uuid.uuid4().hex
+
+
+def check_cv_injection(cv_text: str, structured_info: str) -> tuple[GuardResult, str]:
+    """
+    Combine the rule-based scan of the raw CV text (which includes hidden/white text)
+    with the LLM's own report from the extraction. Returns (result, detector name).
+    """
+    rules = scan(cv_text)
+    try:
+        data = json.loads(structured_info)
+    except (json.JSONDecodeError, TypeError):
+        data = {}
+    llm_flag = str(data.get("injection_detected", "")).strip().lower() in ("true", "1", "yes")
+    merged = merge(rules, llm_flag, str(data.get("injection_reason") or ""), cv_text)
+    return merged, detector_name(rules, llm_flag)

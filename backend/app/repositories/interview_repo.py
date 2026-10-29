@@ -24,7 +24,14 @@ def _as_utc(dt: datetime) -> datetime:
 
 
 def create_session(
-    db: Session, *, candidate_name: str, candidate_email: str, job_title: str, job_description: str
+    db: Session,
+    *,
+    candidate_name: str,
+    candidate_email: str,
+    job_title: str,
+    job_description: str,
+    job_id: int | None = None,
+    candidate_id: str | None = None,
 ) -> InterviewSession:
     token = generate_interview_token()
     session = InterviewSession(
@@ -33,6 +40,8 @@ def create_session(
         candidate_email=candidate_email,
         job_title=job_title,
         job_description=job_description,
+        job_id=job_id,
+        candidate_id=candidate_id,
         used=False,
         expires_at=_now() + timedelta(days=SESSION_TTL_DAYS),
     )
@@ -45,6 +54,32 @@ def create_session(
 
 def get_session(db: Session, token: str) -> InterviewSession | None:
     return db.get(InterviewSession, token)
+
+
+# ── Server-side interview state ──────────────────────────────────────────────
+
+
+def get_questions(session: InterviewSession) -> list[dict]:
+    return json.loads(session.questions_json) if session.questions_json else []
+
+
+def get_progress(session: InterviewSession) -> list[dict | None]:
+    n = len(get_questions(session))
+    progress = json.loads(session.progress_json) if session.progress_json else []
+    return (progress + [None] * n)[:n]
+
+
+def set_questions(db: Session, session: InterviewSession, questions: list[dict]) -> None:
+    session.questions_json = json.dumps(questions)
+    session.progress_json = json.dumps([None] * len(questions))
+    db.commit()
+
+
+def record_answer(db: Session, session: InterviewSession, index: int, entry: dict) -> None:
+    progress = get_progress(session)
+    progress[index] = entry
+    session.progress_json = json.dumps(progress)
+    db.commit()
 
 
 def mark_session_used(db: Session, token: str) -> None:

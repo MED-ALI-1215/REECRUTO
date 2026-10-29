@@ -42,6 +42,7 @@ class JobMatchOut(BaseModel):
     breakdown: list[SkillEvidenceOut]
     reasoning: str | None = None
     legacy_profile: bool = False
+    flagged: bool = False  # the CV tried to instruct the AI (prompt injection)
     matched_at: datetime
 
 
@@ -64,6 +65,7 @@ class JobDetailOut(BaseModel):
     matches: list[JobMatchOut]
     pending_count: int
     filtered_out_count: int = 0  # CVs not pre-selected by ChromaDB
+    interview_questions: list[str] = []  # shared by every candidate invited for this job
     created_at: datetime
     updated_at: datetime
 

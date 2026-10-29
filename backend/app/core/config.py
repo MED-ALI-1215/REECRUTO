@@ -40,6 +40,10 @@ class Settings(BaseSettings):
     SKILL_SIMILARITY_THRESHOLD: float = 0.80
     SEMANTIC_MATCH_FACTOR: float = 0.8
 
+    # ── Interviews ────────────────────────────────────────────────────────────
+    INTERVIEW_QUESTION_COUNT: int = 5  # questions generated once per job (+1 personal)
+    MAX_ANSWER_CHARS: int = 4000
+
     # ── File upload limits ────────────────────────────────────────────────────
     MAX_UPLOAD_SIZE_MB: int = 10
     ALLOWED_EXTENSIONS: list[str] = [

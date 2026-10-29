@@ -11,6 +11,8 @@ class CandidateOut(BaseModel):
     uploaded_at: datetime
     match_score: float | None = None
     structured_info: str | None = None  # returned for CV upload list
+    flagged: bool = False  # the CV tried to instruct the AI (prompt injection)
+    flag_reasons: list[str] = []
 
     model_config = {"from_attributes": True}
 

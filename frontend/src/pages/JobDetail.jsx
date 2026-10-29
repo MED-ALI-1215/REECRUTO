@@ -4,7 +4,7 @@ import {
   ArrowLeft, RefreshCw, Search, Pencil, Trash2, Send, ChevronDown, ChevronUp, AlertTriangle,
 } from "lucide-react";
 import { getJob, updateJob, deleteJob, runJobMatch, createInterview } from "../api/client";
-import { Chip, ScoreBar, Toast } from "../components/ui";
+import { Chip, ScoreBar, SecurityBadge, Toast } from "../components/ui";
 import { errorMessage, scoreColor, useToast } from "../lib/ui";
 
 const SOURCE_LABEL = {
@@ -96,6 +96,16 @@ function JobSummary({ job }) {
           </div>
         </div>
       ))}
+      {job.interview_questions.length > 0 && (
+        <div style={{ marginBottom: 12 }}>
+          <p style={{ fontSize: 12, color: "var(--text-dim)", marginBottom: 6 }}>
+            Interview questions (shared by every candidate, + 1 personal question from each CV)
+          </p>
+          <ol style={{ paddingLeft: 20, fontSize: 13, color: "var(--text-mid)", lineHeight: 1.7 }}>
+            {job.interview_questions.map(q => <li key={q}>{q}</li>)}
+          </ol>
+        </div>
+      )}
       <button className="btn-ghost" onClick={() => setOpen(o => !o)}
         style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, padding: "6px 10px" }}>
         {open ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
@@ -121,8 +131,8 @@ function CandidateRow({ match, rank, job, showToast }) {
       await createInterview({
         candidate_name: match.name,
         candidate_email: match.email,
-        job_title: job.title,
-        job_description: job.description,
+        job_id: job.id,              // shared interview questions for this job
+        candidate_id: match.candidate_id, // + a personal question built from the CV
       });
       showToast(`Interview invite sent to ${match.name}.`);
     } catch (err) {
@@ -153,6 +163,7 @@ function CandidateRow({ match, rank, job, showToast }) {
           <p style={{ fontWeight: 600 }}>{match.name}</p>
           <p style={{ color: "var(--text-dim)", fontSize: 13 }}>{match.email || "No email"}</p>
         </div>
+        {match.flagged && <SecurityBadge reasons={["The CV contains text that tries to instruct the AI — review it."]} />}
         {match.legacy_profile && (
           <span className="badge" title="Extracted with the old format — re-upload this CV"
             style={{ background: "#f0b42915", color: "var(--gold)", border: "1px solid #f0b42930", display: "flex", alignItems: "center", gap: 4 }}>

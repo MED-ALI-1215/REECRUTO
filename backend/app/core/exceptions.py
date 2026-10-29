@@ -73,3 +73,13 @@ class SessionExpiredError(AppError):
 class EmailDeliveryError(AppError):
     status_code = 502
     detail = "Failed to deliver email."
+
+
+class InterviewStateError(AppError):
+    status_code = 409
+    detail = "This action is not allowed at this stage of the interview."
+
+
+class InvalidQuestionError(AppError):
+    status_code = 400
+    detail = "Unknown question."

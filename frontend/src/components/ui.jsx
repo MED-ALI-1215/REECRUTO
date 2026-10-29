@@ -36,3 +36,13 @@ export function Toast({ toast }) {
     </div>
   );
 }
+
+// Shown when a CV or an interview answer tried to instruct the AI (prompt injection)
+export function SecurityBadge({ reasons = [] }) {
+  return (
+    <span className="badge" title={reasons.join("\n") || "Suspected prompt-injection attempt"}
+      style={{ background: "#ef444418", color: "var(--red)", border: "1px solid #ef444440", whiteSpace: "nowrap" }}>
+      ⚠ Injection attempt
+    </span>
+  );
+}

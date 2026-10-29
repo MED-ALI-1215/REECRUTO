@@ -5,7 +5,7 @@ from app.api.dependencies import require_auth
 from app.core.exceptions import CandidateNotFoundError
 from app.core.logging import get_logger
 from app.db.session import get_db
-from app.repositories import interview_repo
+from app.repositories import interview_repo, security_repo
 from app.schemas.interview import InterviewResultOut
 from app.services.email_service import (
     generate_acceptance_email,
@@ -19,7 +19,15 @@ router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
 @router.get("/results", response_model=list[InterviewResultOut])
 def list_results(db: Session = Depends(get_db), _: str = Depends(require_auth)):
-    return interview_repo.list_results(db)
+    results = interview_repo.list_results(db)
+    flags = security_repo.reasons_by_session(db, [r.token for r in results])
+    out = []
+    for r in results:
+        item = InterviewResultOut.model_validate(r)
+        item.flag_reasons = flags.get(r.token, [])
+        item.flagged = bool(item.flag_reasons)
+        out.append(item)
+    return out
 
 
 @router.post("/results/{result_id}/accept")

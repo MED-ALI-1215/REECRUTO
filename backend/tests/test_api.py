@@ -2,6 +2,7 @@
 API integration tests — uses TestClient with an in-memory SQLite DB.
 All Groq and SMTP calls are mocked.
 """
+
 import pytest
 from unittest.mock import patch, MagicMock
 
@@ -15,7 +16,9 @@ class TestHealth:
 
 class TestAuth:
     def test_login_success(self, client):
-        resp = client.post("/api/auth/login", json={"username": "admin", "password": "reecruto-admin"})
+        resp = client.post(
+            "/api/auth/login", json={"username": "admin", "password": "reecruto-admin"}
+        )
         assert resp.status_code == 200
         assert "access_token" in resp.json()
 
@@ -24,7 +27,9 @@ class TestAuth:
         assert resp.status_code == 401
 
     def test_login_wrong_username(self, client):
-        resp = client.post("/api/auth/login", json={"username": "hacker", "password": "reecruto-admin"})
+        resp = client.post(
+            "/api/auth/login", json={"username": "hacker", "password": "reecruto-admin"}
+        )
         assert resp.status_code == 401
 
 
@@ -40,18 +45,28 @@ class TestCandidates:
 
     def test_upload_candidate(self, client, auth_headers):
         mock_resp = MagicMock()
-        mock_resp.choices[0].message.content = '{"full_name": "Alice Smith", "email": "alice@example.com", "skills": ["Python"]}'
+        mock_resp.choices[0].message.content = (
+            '{"full_name": "Alice Smith", "email": "alice@example.com", "skills": ["Python"]}'
+        )
         mock_resp.usage.prompt_tokens = 100
 
-        with patch("groq.Groq") as MockGroq, \
-             patch("app.repositories.candidate_repo.get_candidates_collection") as mock_col:
+        with (
+            patch("groq.Groq") as MockGroq,
+            patch("app.repositories.candidate_repo.get_candidates_collection") as mock_col,
+        ):
             MockGroq.return_value.chat.completions.create.return_value = mock_resp
             mock_col.return_value.add = MagicMock()
 
             resp = client.post(
                 "/api/candidates",
                 headers=auth_headers,
-                files={"file": ("test_cv.txt", b"Alice Smith\nSoftware Engineer\nalice@example.com", "text/plain")},
+                files={
+                    "file": (
+                        "test_cv.txt",
+                        b"Alice Smith\nSoftware Engineer\nalice@example.com",
+                        "text/plain",
+                    )
+                },
             )
 
         assert resp.status_code == 201
@@ -126,18 +141,43 @@ class TestInterviews:
             token = client.post(
                 "/api/interviews",
                 headers=auth_headers,
-                json={"candidate_name": "X", "candidate_email": "x@t.com",
-                      "job_title": "Eng", "job_description": "desc"},
+                json={
+                    "candidate_name": "X",
+                    "candidate_email": "x@t.com",
+                    "job_title": "Eng",
+                    "job_description": "desc",
+                },
             ).json()["token"]
 
-        # Manually mark as used via finish endpoint
-        with patch("app.services.interview_service.generate_final_report") as mock_report:
-            mock_report.return_value = {
-                "overall_score": 70, "summary": "ok", "strengths": "x",
-                "red_flags": "none", "recommendation": "Maybe"
-            }
-            client.post(f"/api/interviews/{token}/finish",
-                        json={"questions": ["Q1"], "answers": ["A1"], "scores": [{"score": 70}]})
+        # Go through the server-side flow: start, answer, finish
+        with (
+            patch("app.services.interview_service.generate_questions", return_value=["Q1"]),
+            patch(
+                "app.services.interview_service.score_answer",
+                return_value={
+                    "score": 70,
+                    "feedback": "ok",
+                    "keywords": [],
+                    "injection_detected": False,
+                    "injection_reason": "",
+                },
+            ),
+            patch(
+                "app.services.interview_service.generate_final_report",
+                return_value={
+                    "overall_score": 70,
+                    "summary": "ok",
+                    "strengths": "x",
+                    "red_flags": "none",
+                    "recommendation": "Maybe",
+                },
+            ),
+        ):
+            client.post(f"/api/interviews/{token}/questions")
+            client.post(
+                f"/api/interviews/{token}/score", json={"question_index": 0, "answer": "A1"}
+            )
+            client.post(f"/api/interviews/{token}/finish")
 
         # Now the session is used — should return 410
         resp = client.get(f"/api/interviews/{token}")
@@ -162,8 +202,10 @@ class TestDashboard:
 class TestErrorHandling:
     def test_groq_error_returns_502(self, client, auth_headers):
         """Groq failure on upload should return 502, not a raw traceback."""
-        with patch("groq.Groq") as MockGroq, \
-             patch("app.repositories.candidate_repo.get_candidates_collection"):
+        with (
+            patch("groq.Groq") as MockGroq,
+            patch("app.repositories.candidate_repo.get_candidates_collection"),
+        ):
             MockGroq.return_value.chat.completions.create.side_effect = Exception("Groq is down")
             resp = client.post(
                 "/api/candidates",

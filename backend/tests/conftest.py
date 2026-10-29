@@ -20,6 +20,7 @@ import app.models.candidate   # noqa: registers models
 import app.models.interview   # noqa: registers models
 import app.models.ai_call      # noqa: registers models
 import app.models.job          # noqa: registers models
+import app.models.security_event  # noqa: registers models
 from app.main import app
 
 # Single shared in-memory engine for the whole test session

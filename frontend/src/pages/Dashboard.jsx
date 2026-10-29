@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
-import { CheckCircle, XCircle, ChevronDown, ChevronUp, Search, ArrowUpDown } from "lucide-react";
+import { CheckCircle, XCircle, ChevronDown, ChevronUp, Search } from "lucide-react";
 import { getDashboard, acceptCandidate, rejectCandidate } from "../api/client";
+import { SecurityBadge } from "../components/ui";
 
 const RECOMMENDATIONS = ["All", "Highly Recommended", "Recommended", "Maybe", "Not Recommended"];
 
@@ -193,6 +194,7 @@ export default function Dashboard() {
                 <p style={{ color: "var(--text-dim)", fontSize: 13 }}>{r.job_title} · {r.candidate_email}</p>
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
+                {r.flagged && <SecurityBadge reasons={r.flag_reasons} />}
                 <RecoTag value={r.recommendation} />
                 <p style={{ fontSize: 12, color: "var(--text-dim)" }}>
                   {new Date(r.completed_at).toLocaleDateString()}
