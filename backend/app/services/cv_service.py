@@ -31,53 +31,56 @@ MAX_CV_CHARS = 20_000
 # ── Text extractors ───────────────────────────────────────────────────────────
 
 
+SUPPORTED_FORMATS = "PDF (with selectable text), DOCX or TXT"
+# Below this many letters/digits, a PDF is treated as a scan / image-only document
+MIN_TEXT_CHARS = 50
+
+
 def _extract_pdf(data: bytes) -> str:
     import PyPDF2
 
-    reader = PyPDF2.PdfReader(io.BytesIO(data))
-    text = "\n".join(page.extract_text() or "" for page in reader.pages)
-    if not text.strip():
-        raise CVExtractionError("PDF appears to be empty or image-only (no extractable text).")
+    try:
+        reader = PyPDF2.PdfReader(io.BytesIO(data))
+        text = "\n".join(page.extract_text() or "" for page in reader.pages)
+    except Exception as e:
+        raise CVExtractionError(
+            f"This PDF could not be read (it may be corrupted or password-protected). "
+            f"Please upload a {SUPPORTED_FORMATS} file."
+        ) from e
+    if sum(c.isalnum() for c in text) < MIN_TEXT_CHARS:
+        raise CVExtractionError(
+            "This PDF contains no selectable text — it is probably a scan or an image. "
+            f"Image-based CVs are not supported: please upload a {SUPPORTED_FORMATS} file."
+        )
     return text
 
 
 def _extract_docx(data: bytes) -> str:
     import docx
 
-    doc = docx.Document(io.BytesIO(data))
+    try:
+        doc = docx.Document(io.BytesIO(data))
+    except Exception as e:
+        raise CVExtractionError(
+            f"This DOCX file could not be read. Please upload a {SUPPORTED_FORMATS} file."
+        ) from e
     text = "\n".join(p.text for p in doc.paragraphs)
     if not text.strip():
-        raise CVExtractionError("DOCX file appears to be empty.")
-    return text
-
-
-def _extract_image(data: bytes) -> str:
-    try:
-        import pytesseract
-        from PIL import Image
-    except ImportError as e:
-        raise CVExtractionError("OCR not available — install pytesseract and Pillow.") from e
-    text = pytesseract.image_to_string(Image.open(io.BytesIO(data)))
-    if not text.strip():
-        raise CVExtractionError("No text could be extracted from the image.")
+        raise CVExtractionError("This DOCX file is empty.")
     return text
 
 
 def _extract_txt(data: bytes) -> str:
     text = data.decode("utf-8", errors="replace")
     if not text.strip():
-        raise CVExtractionError("Text file is empty.")
+        raise CVExtractionError("This text file is empty.")
     return text
 
 
 _EXTRACTORS = {
     "pdf": _extract_pdf,
     "docx": _extract_docx,
-    "doc": _extract_docx,
     "txt": _extract_txt,
-    "png": _extract_image,
-    "jpg": _extract_image,
-    "jpeg": _extract_image,
 }
 
 
@@ -85,7 +88,9 @@ def extract_text(filename: str, data: bytes) -> str:
     ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
     fn = _EXTRACTORS.get(ext)
     if fn is None:
-        raise UnsupportedFileTypeError(f"Unsupported file type: .{ext}")
+        raise UnsupportedFileTypeError(
+            f"File type .{ext} is not allowed. Please upload a {SUPPORTED_FORMATS} file."
+        )
     logger.info("Extracting text from %s (%d bytes)", filename, len(data))
     return fn(data)
 

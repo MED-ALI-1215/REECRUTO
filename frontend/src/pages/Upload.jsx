@@ -3,6 +3,10 @@ import { Upload as UploadIcon, Trash2, FileText, CheckCircle, AlertCircle, Chevr
 import { getCandidates, uploadCandidate, deleteCandidate } from "../api/client";
 import { SecurityBadge } from "../components/ui";
 
+// Text-based CVs only (no OCR): images and scanned PDFs are rejected
+const SUPPORTED = ["pdf", "docx", "txt"];
+const SUPPORTED_LABEL = "PDF (with selectable text), DOCX or TXT";
+
 export default function UploadPage() {
   const [candidates, setCandidates] = useState([]);
   const [uploading, setUploading] = useState(false);
@@ -13,7 +17,7 @@ export default function UploadPage() {
 
   const showToast = (msg, type = "ok") => {
     setToast({ msg, type });
-    setTimeout(() => setToast(null), 3500);
+    setTimeout(() => setToast(null), type === "err" ? 7000 : 3500);
   };
 
   const load = async () => {
@@ -23,11 +27,20 @@ export default function UploadPage() {
     } catch { /* silent */ }
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    getCandidates()
+      .then(({ data }) => setCandidates(data.candidates))
+      .catch(() => { /* silent */ });
+  }, []);
 
   const handleFiles = async (files) => {
     const file = files[0];
     if (!file) return;
+    const ext = file.name.includes(".") ? file.name.split(".").pop().toLowerCase() : "";
+    if (!SUPPORTED.includes(ext)) {
+      showToast(`“${file.name}” is not supported. Please upload a ${SUPPORTED_LABEL} file.`, "err");
+      return;
+    }
     setUploading(true);
     try {
       await uploadCandidate(file);
@@ -73,8 +86,8 @@ export default function UploadPage() {
         }}
       >
         <input ref={inputRef} type="file" hidden
-          accept=".pdf,.docx,.doc,.txt,.png,.jpg,.jpeg"
-          onChange={e => handleFiles(e.target.files)} />
+          accept=".pdf,.docx,.txt"
+          onChange={e => { handleFiles(e.target.files); e.target.value = ""; }} />
 
         {uploading ? (
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
@@ -85,7 +98,7 @@ export default function UploadPage() {
           <>
             <UploadIcon size={32} color="var(--text-dim)" style={{ marginBottom: 12 }} />
             <p style={{ fontWeight: 600, marginBottom: 4 }}>Drop a CV here or click to browse</p>
-            <p style={{ color: "var(--text-dim)", fontSize: 13 }}>PDF, DOCX, TXT, PNG, JPG — max 10MB</p>
+            <p style={{ color: "var(--text-dim)", fontSize: 13 }}>PDF (with selectable text), DOCX, TXT — max 10MB · scanned or image CVs are not supported</p>
           </>
         )}
       </div>

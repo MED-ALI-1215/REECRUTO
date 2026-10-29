@@ -7,6 +7,10 @@ class Settings(BaseSettings):
     # ── AI ────────────────────────────────────────────────────────────────────
     GROQ_API_KEY: str
     GROQ_MODEL: str = "openai/gpt-oss-120b"
+    # USD per million tokens, used to estimate costs on the AI usage page
+    # (Groq list price for openai/gpt-oss-120b, Oct 2026 — update if you change model)
+    GROQ_PRICE_INPUT_PER_M: float = 0.15
+    GROQ_PRICE_OUTPUT_PER_M: float = 0.60
 
     # ── Databases ─────────────────────────────────────────────────────────────
     DATABASE_URL: str = "postgresql+psycopg2://reecruto:reecruto@localhost:5432/reecruto"
@@ -46,14 +50,9 @@ class Settings(BaseSettings):
 
     # ── File upload limits ────────────────────────────────────────────────────
     MAX_UPLOAD_SIZE_MB: int = 10
-    ALLOWED_EXTENSIONS: list[str] = [
-        "pdf",
-        "docx",
-        "txt",
-        "png",
-        "jpg",
-        "jpeg",
-    ]  # no .doc: python-docx reads .docx only
+    # Text-based formats only: no OCR, so images and scanned PDFs are rejected with a
+    # clear message. No .doc either: python-docx reads .docx only.
+    ALLOWED_EXTENSIONS: list[str] = ["pdf", "docx", "txt"]
 
     model_config = SettingsConfigDict(
         env_file=".env",

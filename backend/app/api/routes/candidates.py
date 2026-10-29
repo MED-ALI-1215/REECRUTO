@@ -26,7 +26,10 @@ def upload_candidate(
     settings = get_settings()
     ext = (file.filename or "").rsplit(".", 1)[-1].lower()
     if ext not in settings.ALLOWED_EXTENSIONS:
-        raise UnsupportedFileTypeError(f"File type .{ext} is not allowed.")
+        raise UnsupportedFileTypeError(
+            f"File type .{ext or '?'} is not allowed. "
+            f"Please upload a {cv_service.SUPPORTED_FORMATS} file."
+        )
 
     data = file.file.read()
     if len(data) > settings.max_upload_bytes:

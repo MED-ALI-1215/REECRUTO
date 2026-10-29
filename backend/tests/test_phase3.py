@@ -92,7 +92,9 @@ class TestAICallRepo:
 
         assert "cv_extraction" in services
         assert services["cv_extraction"]["total_calls"] == 3
-        assert services["cv_extraction"]["total_tokens"] == 600  # 100+200+300
+        assert services["cv_extraction"]["prompt_tokens"] == 600  # 100+200+300
+        assert services["cv_extraction"]["completion_tokens"] == 150
+        assert services["cv_extraction"]["total_tokens"] == 750  # input + output
 
         assert "answer_scoring" in services
         assert services["answer_scoring"]["failures"] == 1

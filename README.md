@@ -8,7 +8,7 @@ AI-powered recruitment platform. Automates CV parsing, semantic candidate matchi
 
 | Step | Who | What happens |
 |---|---|---|
-| 1 | Recruiter | Uploads candidate CVs (PDF, DOCX, TXT, image) |
+| 1 | Recruiter | Uploads candidate CVs (PDF with selectable text, DOCX, TXT) |
 | 2 | System | AI extracts a structured JSON profile — skills, experience (with technologies used), projects, certifications |
 | 3 | Recruiter | Saves a job description → its skills are extracted once, every CV is ranked with per-skill evidence |
 | 4 | Recruiter | Sends interview invite — candidate receives a one-time link by email |
@@ -283,7 +283,7 @@ Full interactive docs at `http://localhost:8000/docs` when the backend is runnin
 ## CV format recommendations
 
 For best matching results:
-- PDF with a text layer, DOCX, or TXT — scanned image PDFs are not supported (`.doc` is not supported either)
+- PDF with a text layer, DOCX, or TXT only — there is no OCR: images, scanned PDFs and `.doc` files are rejected with a clear message
 - CVs in other languages work: the extraction prompt translates the profile to English
 - CVs uploaded before the JSON extraction (v2) must be re-uploaded — they are flagged "Re-upload CV"
 - Multi-page PDFs are fully supported

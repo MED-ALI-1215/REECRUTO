@@ -1,10 +1,11 @@
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
-import { Upload, Briefcase, LayoutDashboard, LogOut } from "lucide-react";
+import { Upload, Briefcase, LayoutDashboard, Activity, LogOut } from "lucide-react";
 
 const nav = [
   { to: "/upload",    label: "CV Upload",    icon: Upload },
   { to: "/match",     label: "Job Matcher",  icon: Briefcase },
   { to: "/dashboard", label: "Dashboard",    icon: LayoutDashboard },
+  { to: "/usage",     label: "AI Usage",     icon: Activity },
 ];
 
 export default function Layout() {

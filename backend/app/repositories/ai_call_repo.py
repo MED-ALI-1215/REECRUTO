@@ -1,4 +1,4 @@
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy.orm import Session
 
@@ -42,31 +42,104 @@ def record_ai_call(
     return call
 
 
-def get_stats(db: Session) -> dict:
+def _cost(prompt_tokens: int, completion_tokens: int) -> float:
+    from app.core.config import get_settings
+
+    settings = get_settings()
+    return round(
+        prompt_tokens / 1e6 * settings.GROQ_PRICE_INPUT_PER_M
+        + completion_tokens / 1e6 * settings.GROQ_PRICE_OUTPUT_PER_M,
+        6,
+    )
+
+
+def get_stats(db: Session) -> list[dict]:
     """
-    Quick summary of AI call usage.
+    Per-service summary of AI calls (all time).
     Exposed via GET /api/admin/ai-stats.
+    """
+    return get_usage(db)["by_service"]
+
+
+def get_usage(db: Session, days: int | None = None) -> dict:
+    """
+    Token usage and estimated cost, overall, per service and per day.
+    `days=None` (or 0) means all time. Exposed via GET /api/admin/usage.
     """
     from sqlalchemy import Integer, func
 
-    rows = (
+    since = datetime.now(UTC) - timedelta(days=days) if days else None
+
+    def scoped(query):
+        return query.filter(AICall.created_at >= since) if since else query
+
+    failures = func.sum((AICall.success.is_(False)).cast(Integer))
+    by_service_rows = scoped(
         db.query(
             AICall.service,
-            func.count(AICall.id).label("total_calls"),
-            func.sum(AICall.prompt_tokens).label("total_tokens"),
-            func.avg(AICall.latency_ms).label("avg_latency_ms"),
-            func.sum((AICall.success == False).cast(Integer)).label("failures"),  # noqa
+            func.count(AICall.id),
+            func.coalesce(func.sum(AICall.prompt_tokens), 0),
+            func.coalesce(func.sum(AICall.completion_tokens), 0),
+            func.avg(AICall.latency_ms),
+            failures,
         )
-        .group_by(AICall.service)
-        .all()
-    )
-    return [
+    ).group_by(AICall.service)
+
+    by_service = []
+    for service, calls, prompt, completion, latency, failed in by_service_rows.all():
+        prompt, completion = int(prompt), int(completion)
+        cost = _cost(prompt, completion)
+        by_service.append(
+            {
+                "service": service,
+                "total_calls": calls,
+                "prompt_tokens": prompt,
+                "completion_tokens": completion,
+                "total_tokens": prompt + completion,
+                "avg_tokens_per_call": round((prompt + completion) / calls) if calls else 0,
+                "estimated_cost_usd": cost,
+                "avg_cost_per_call_usd": round(cost / calls, 6) if calls else 0.0,
+                "avg_latency_ms": round(latency or 0, 1),
+                "failures": int(failed or 0),
+            }
+        )
+    by_service.sort(key=lambda s: s["total_tokens"], reverse=True)
+
+    day = func.date(AICall.created_at)
+    by_day = [
         {
-            "service": r.service,
-            "total_calls": r.total_calls,
-            "total_tokens": r.total_tokens or 0,
-            "avg_latency_ms": round(r.avg_latency_ms or 0, 1),
-            "failures": r.failures or 0,
+            "date": str(d),
+            "calls": calls,
+            "prompt_tokens": int(prompt),
+            "completion_tokens": int(completion),
+            "estimated_cost_usd": _cost(int(prompt), int(completion)),
         }
-        for r in rows
+        for d, calls, prompt, completion in scoped(
+            db.query(
+                day,
+                func.count(AICall.id),
+                func.coalesce(func.sum(AICall.prompt_tokens), 0),
+                func.coalesce(func.sum(AICall.completion_tokens), 0),
+            )
+        )
+        .group_by(day)
+        .order_by(day)
+        .all()
     ]
+
+    prompt_total = sum(s["prompt_tokens"] for s in by_service)
+    completion_total = sum(s["completion_tokens"] for s in by_service)
+    calls_total = sum(s["total_calls"] for s in by_service)
+    return {
+        "days": days or None,
+        "totals": {
+            "calls": calls_total,
+            "failures": sum(s["failures"] for s in by_service),
+            "prompt_tokens": prompt_total,
+            "completion_tokens": completion_total,
+            "total_tokens": prompt_total + completion_total,
+            "estimated_cost_usd": _cost(prompt_total, completion_total),
+        },
+        "by_service": by_service,
+        "by_day": by_day,
+    }

@@ -53,5 +53,7 @@ export const scoreAnswer = (token, questionIndex, answer) =>
 export const finishInterview = (token) => api.post(`/api/interviews/${token}/finish`);
 
 export const getDashboard = () => api.get("/api/dashboard/results");
+// LLM token usage and estimated cost (days = 0 for all time)
+export const getUsage = (days = 30) => api.get("/api/admin/usage", { params: { days } });
 export const acceptCandidate = (id) => api.post(`/api/dashboard/results/${id}/accept`);
 export const rejectCandidate = (id) => api.post(`/api/dashboard/results/${id}/reject`);

@@ -1,12 +1,12 @@
 import json
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from app.api.dependencies import require_auth
 from app.db.session import get_db
 from app.repositories import security_repo
-from app.repositories.ai_call_repo import get_stats
+from app.repositories.ai_call_repo import get_stats, get_usage
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -18,6 +18,16 @@ def ai_stats(db: Session = Depends(get_db), _: str = Depends(require_auth)):
     total calls, total tokens consumed, avg latency, failure count.
     """
     return get_stats(db)
+
+
+@router.get("/usage")
+def usage(
+    days: int = Query(30, ge=0, le=3650, description="Period in days, 0 = all time"),
+    db: Session = Depends(get_db),
+    _: str = Depends(require_auth),
+):
+    """LLM token usage and estimated cost: totals, per service and per day."""
+    return get_usage(db, days or None)
 
 
 @router.get("/security-events")
